@@ -2,3 +2,8 @@
 *.out
 dist/
 .vscode/
+CMakeFiles
+*Cache*
+cmake_install.cmake
+*/report/*.pdf
+*/Makefile
