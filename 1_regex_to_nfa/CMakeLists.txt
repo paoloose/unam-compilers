@@ -4,6 +4,6 @@ project(regex_to_nfa C)
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 
-add_executable(regex_to_nfa.bin
+add_executable(regex_to_nfa
     ./src/main.c
 )
