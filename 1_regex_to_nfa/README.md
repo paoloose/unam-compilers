@@ -48,7 +48,7 @@ docker compose run --rm main sh -c "cmake . && make && (printf '%s\n' "(ab)*" "a
 ## Running the tests
 
 ```bash
-docker compose run --rm main sh -c "cmake . && make && ./validator"
+docker compose run --rm main sh -c "cmake . && make && ./regex_to_nfa -x"
 ```
 
 <!--
