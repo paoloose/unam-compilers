@@ -15,7 +15,7 @@
 
 // Environment
 #ifndef UNAM_IS_DEBUG
-    #define UNAM_IS_DEBUG 1
+    #define UNAM_IS_DEBUG 0
 #endif
 
 #if UNAM_IS_DEBUG == 1

@@ -55,8 +55,6 @@ static inline result(regex) parse_regex(const char* str) {
         res.err = create_error("Empty regex string");
         return res;
     }
-    res.err = create_error("Malformed expression");
-    return res;
 
     // First pass: insert explicit concatenation operator '.'
     da_char infix = {0};
