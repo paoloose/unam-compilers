@@ -6,4 +6,5 @@ set(CMAKE_C_STANDARD_REQUIRED ON)
 
 add_executable(regex_to_nfa
     ./src/main.c
+    ./src/tests.c
 )
