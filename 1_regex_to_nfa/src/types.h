@@ -16,13 +16,14 @@ typedef struct {
 
 // Represents a supported operation by our regex implementation
 typedef struct {
+    char symbol;
     int precedence;
     int arguments;
 } input_op;
 
 // -> NFA types
 
-#define TRANSITION_EPSILON '\0'
+#define TRANSITION_EPSILON '='
 #define MAX_TRANSITIONS 2  // For epsilon closure, we have at most 2 transitions per state
 
 typedef struct nfa_node nfa_node;
