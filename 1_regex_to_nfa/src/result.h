@@ -81,6 +81,9 @@ typedef struct { \
 } result_##STRUCT_NAME; \
 create_must(STRUCT_NAME)
 
+#define is_ok(TYPE) ((TYPE.err) == NULL)
+#define is_err(TYPE) ((TYPE.err) != NULL)
+
 #define return_if_err(RESULT) \
     if (RESULT.err != nil) return RESULT;
 
@@ -226,9 +229,28 @@ static inline int be_equal(int call, int val) {
     return 0;
 }
 
-static inline int be_non_zero(int value) {
-    if (value != 0) return 1;
+static inline int be_true(bool val) {
+    if (val == false) return 1;
     return 0;
+}
+
+static inline int be_false(bool val) {
+    return be_true(!val);
+}
+
+static inline int be_non_zero(int value) {
+    if (value == 0) return 1;
+    return 0;
+}
+
+static inline int be_not_null(void* value) {
+    if (value == NULL) return 1;
+    return 0;
+}
+
+static inline int be_less_equal_than(int call, int val) {
+    if (call <= val) return 0; // ok
+    return 1;
 }
 
 // Created to be chain like so failed_to(be_equal(...))
