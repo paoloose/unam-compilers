@@ -25,8 +25,7 @@ void test_strings_stdin(const char *regex_str) {
     UNAM_DEBUG("regex: %s\n", regex_str);
     result(regex) rgx = parse_regex(regex_str);
     must(rgx, "Could not parse expression %s", regex_str);
-    UNAM_DEBUG("postfix expression: ");
-    // print_postfix(rgx.val);
+
     result(nfa) automata = regex_to_nfa(rgx.val);
     must(automata, "Could not build automata from expression %s", regex_str);
 
