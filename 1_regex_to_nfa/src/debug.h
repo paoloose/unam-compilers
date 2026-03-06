@@ -31,3 +31,14 @@
 #else
 #   define UNAM_DEBUG(x, ...) ((void)0)
 #endif
+
+#if UNAM_IS_DEBUG == 1
+#   define UNAM_DEBUGP(x, ...) \
+        fprintf( \
+            stderr, \
+            UNAM_RESET x, \
+            ##__VA_ARGS__ \
+        );
+#else
+#   define UNAM_DEBUGP(x, ...) ((void)0)
+#endif
