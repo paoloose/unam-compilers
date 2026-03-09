@@ -6,184 +6,150 @@
 #include "regex.h"
 #include "da.h"
 
-// Global node counter for unique IDs
-static int g_node_id = 0;
+static int global_node_id = 0;
 
-// Create a new NFA node
-static inline nfa_node* create_nfa_node() {
-    nfa_node* node = (nfa_node*)calloc(1, sizeof(nfa_node));
-    node->id = g_node_id++;
-    node->trans_count = 0;
-    node->is_accept = false;
-    return node;
+static void free_nfa_node(nfa_node* n, da_pointer* visited);
+
+static void free_fragment(nfa_fragment* f) {
+    da_pointer visited_nodes = {0};
+    da_pointer_init(&visited_nodes, 16);
+
+    free_nfa_node(f->start, &visited_nodes);
+
+    bool end_was_freed = false;
+
+    for (int j = 0; j < visited_nodes.length; j++) {
+        if (visited_nodes.data[j] == (void*)f->accept) {
+            end_was_freed = true;
+        }
+    }
+
+    must(be_true(end_was_freed), "Tried to free a malformed fragment: start and end were not connected");
+
+    da_free(&visited_nodes);
 }
 
-// Add a transition from 'from' to 'to' on character 'on'
-static inline void add_transition(nfa_node* from, nfa_node* to, char on) {
-    if (from->trans_count >= MAX_TRANSITIONS) {
-        return; // Error: too many transitions
+static void free_nfa_node(nfa_node* n, da_pointer* visited) {
+    must(be_not_null(n), "Trying to free a null fragment");
+
+    // checking if it was already freed
+    for (int j = 0; j < visited->length; j++) {
+        if (visited->data[j] == (void*)n) {
+            return; // means already freed
+        }
     }
+
+    da_pointer_append(visited, n);
+
+    for (int i = 0; i < n->trans_count; i++) {
+        free_nfa_node(n->trans[i].target, visited);
+    }
+
+    free(n);
+}
+
+static nfa_node* alloc_nfa_node() {
+    nfa_node* n = calloc(sizeof(nfa_node), 1);
+    must(be_not_null(n));
+    n->id = global_node_id++;
+    n->trans_count = 0;
+    n->is_accept = false;
+    return n;
+}
+
+static void add_transition(nfa_node* from, nfa_node* to, char on) {
+    must(be_less_equal_than(from->trans_count, MAX_TRANSITIONS), "Tried to add more transitions than supported");
+
     from->trans[from->trans_count].on = on;
     from->trans[from->trans_count].target = to;
     from->trans_count++;
 }
 
-// Create a basic NFA fragment for a single character
-static inline nfa_fragment create_atom(char c) {
-    nfa_fragment frag = {0};
-    frag.start = create_nfa_node();
-    frag.accept = create_nfa_node();
-    add_transition(frag.start, frag.accept, c);
-    return frag;
+static nfa_fragment fragment_atom(char symbol) {
+    nfa_fragment f = { .start = alloc_nfa_node(), .accept = alloc_nfa_node() };
+    add_transition(f.start, f.accept, symbol);
+    return f;
 }
 
-// Concatenate two NFA fragments (AB)
-static inline nfa_fragment concat(nfa_fragment a, nfa_fragment b) {
-    nfa_fragment result = {0};
-    a.accept->is_accept = false;
-    add_transition(a.accept, b.start, TRANSITION_EPSILON);
-    result.start = a.start;
-    result.accept = b.accept;
-    return result;
+static nfa_fragment fragment_kleene_star(nfa_fragment fparam) {
+    nfa_fragment f = { .start = alloc_nfa_node(), .accept = alloc_nfa_node() };
+    add_transition(f.start, fparam.start, TRANSITION_EPSILON);
+    add_transition(f.start, f.accept, TRANSITION_EPSILON);
+    add_transition(fparam.accept, fparam.start, TRANSITION_EPSILON);
+    add_transition(fparam.accept, f.accept, TRANSITION_EPSILON);
+    return f;
 }
 
-// Union two NFA fragments (A|B)
-static inline nfa_fragment union_nfa(nfa_fragment a, nfa_fragment b) {
-    nfa_fragment result = {0};
-    result.start = create_nfa_node();
-    result.accept = create_nfa_node();
+static nfa_fragment fragment_plus(nfa_fragment fparam) {
+    nfa_fragment f = { .start = fparam.start, .accept = alloc_nfa_node() };
 
-    a.accept->is_accept = false;
-    b.accept->is_accept = false;
-
-    add_transition(result.start, a.start, TRANSITION_EPSILON);
-    add_transition(result.start, b.start, TRANSITION_EPSILON);
-    add_transition(a.accept, result.accept, TRANSITION_EPSILON);
-    add_transition(b.accept, result.accept, TRANSITION_EPSILON);
-
-    return result;
+    add_transition(fparam.accept, fparam.start, TRANSITION_EPSILON);
+    add_transition(fparam.accept, f.accept, TRANSITION_EPSILON);
+    return f;
 }
 
-// One or more (a+) - same as a concatenated with a*
-static inline nfa_fragment plus(nfa_fragment a) {
-    nfa_fragment result = {0};
-    result.start = a.start;
-    result.accept = create_nfa_node();
+// This equivalence applies for the optional operator: a? = (a | epsilon)
+static nfa_fragment fragment_union(nfa_fragment f1, nfa_fragment f2) {
+    nfa_fragment f = { .start = alloc_nfa_node(), .accept = alloc_nfa_node() };
 
-    a.accept->is_accept = false;
-
-    add_transition(a.accept, a.start, TRANSITION_EPSILON);
-    add_transition(a.accept, result.accept, TRANSITION_EPSILON);
-
-    return result;
+    add_transition(f.start, f1.start, TRANSITION_EPSILON);
+    add_transition(f1.accept, f.accept, TRANSITION_EPSILON);
+    add_transition(f.start, f2.start, TRANSITION_EPSILON);
+    add_transition(f2.accept, f.accept, TRANSITION_EPSILON);
+    return f;
 }
 
-// Zero or one (a?) - either the pattern or epsilon
-static inline nfa_fragment question(nfa_fragment a) {
-    nfa_fragment result = {0};
-    result.start = create_nfa_node();
-    result.accept = create_nfa_node();
-
-    a.accept->is_accept = false;
-
-    // Path through a
-    add_transition(result.start, a.start, TRANSITION_EPSILON);
-    add_transition(a.accept, result.accept, TRANSITION_EPSILON);
-
-    // Direct epsilon path (zero occurrences)
-    add_transition(result.start, result.accept, TRANSITION_EPSILON);
-
-    return result;
+// This equivalence applies for the optional operator: a? = (a | epsilon)
+static nfa_fragment fragment_optional(nfa_fragment fparam) {
+    return fragment_union(fparam, fragment_atom(TRANSITION_EPSILON));
 }
 
-// Kleene star (A*)
-static inline nfa_fragment kleene(nfa_fragment a) {
-    nfa_fragment result = {0};
-    result.start = create_nfa_node();
-    result.accept = create_nfa_node();
-
-    a.accept->is_accept = false;
-
-    add_transition(result.start, a.start, TRANSITION_EPSILON);
-    add_transition(result.start, result.accept, TRANSITION_EPSILON);
-    add_transition(a.accept, a.start, TRANSITION_EPSILON);
-    add_transition(a.accept, result.accept, TRANSITION_EPSILON);
-    // todo: write unit tests for this
-
-    return result;
+static nfa_fragment fragment_concat(nfa_fragment f1, nfa_fragment f2) {
+    nfa_fragment f = { .start = f1.start, .accept = f2.accept };
+    add_transition(f1.accept, f2.start, TRANSITION_EPSILON);
+    return f;
 }
 
-// Helper function to add a state and its epsilon closure
-#define MAX_STATES 1024
-
-static void add_state_with_closure(nfa_node* node, nfa_node** states, int* count) {
-    if (*count >= MAX_STATES) return;
-
-    // Check if already in states
-    for (int i = 0; i < *count; i++) {
-        if (states[i] == node) return;
+static void print_fragments(da_nfa_fragment* frags) {
+    UNAM_DEBUG("[");
+    for (int i = 0; i < frags->length; i++) {
+        UNAM_DEBUG("%p, ", &frags->data[i]);
     }
-
-    states[(*count)++] = node;
-
-    // Follow epsilon transitions
-    for (int i = 0; i < node->trans_count; i++) {
-        if (node->trans[i].on == TRANSITION_EPSILON) {
-            add_state_with_closure(node->trans[i].target, states, count);
-        }
-    }
+    UNAM_DEBUG("]\n");
 }
 
-// Simulate NFA matching
-static inline bool match_nfa(nfa n, char* buf, int buflen) {
-    if (!n.origin) return false;
-
-    nfa_node* current_states[MAX_STATES];
-    int current_count = 0;
-
-    nfa_node* next_states[MAX_STATES];
-    int next_count = 0;
-
-    // Start with epsilon closure of origin
-    add_state_with_closure(n.origin, current_states, &current_count);
-
-    // Process each character in buffer
-    for (int i = 0; i < buflen; i++) {
-        char c = buf[i];
-        next_count = 0;
-
-        // For each current state, follow transitions on character c
-        for (int j = 0; j < current_count; j++) {
-            nfa_node* state = current_states[j];
-
-            for (int k = 0; k < state->trans_count; k++) {
-                if (state->trans[k].on == c) {
-                    add_state_with_closure(state->trans[k].target, next_states, &next_count);
-                }
-            }
-        }
-
-        // Swap current and next
-        for (int j = 0; j < next_count; j++) {
-            current_states[j] = next_states[j];
-        }
-        current_count = next_count;
-    }
-
-    // Check if any current state is accepting
-    bool accepted = false;
-    for (int i = 0; i < current_count; i++) {
-        if (current_states[i]->is_accept) {
-            accepted = true;
-            break;
+static void _traverse_nfa(nfa_node* node, da_nfa_node* visited_nodes) {
+    for (int i = 0; i < visited_nodes->length; i++) {
+        if (node == visited_nodes->data[i]) {
+            return;
         }
     }
 
-    return accepted;
+    da_nfa_node_append(visited_nodes, node);
+
+    for (int t = 0; t < node->trans_count; t++) {
+        _traverse_nfa(node->trans[t].target, visited_nodes);
+    }
+}
+
+static void print_nfa(nfa automata) {
+    da_nfa_node nodes = {0};
+    da_nfa_node_init(&nodes, automata.node_count);
+
+    _traverse_nfa(automata.origin, &nodes);
+
+    for (int n = 0; n < nodes.length; n++) {
+        nfa_node* node = nodes.data[n];
+        UNAM_DEBUG("node(%d)%s\n", node->id, node->is_accept ? " ⭐" : "");
+        for (int t = 0; t < node->trans_count; t++) {
+            transition trans = node->trans[t];
+            UNAM_DEBUG(" -%c->(%d)\n", trans.on, trans.target->id);
+        }
+    }
 }
 
 // Convert regex to NFA using Thompson algorithm
-static inline result(nfa) regex_to_nfa(regex r) {
+static result(nfa) regex_to_nfa(regex r) {
     result(nfa) res = {0};
 
     if (r.size == 0) {
@@ -191,99 +157,174 @@ static inline result(nfa) regex_to_nfa(regex r) {
         return res;
     }
 
-    // Use a stack to build fragments
-    da_nfa_fragment stack = {0};
-    da_nfa_fragment_init(&stack, 64);
+    // Start popping the operands and evaluating them
 
-    // Process postfix regex tokens
+    da_nfa_fragment fragments = {0};
+    da_nfa_fragment_init(&fragments, r.size);
+
+    UNAM_DEBUG("=== Building NFA ===\n");
+
     for (int i = 0; i < r.size; i++) {
-        char token = r.items[i].value;
+        char symbol = r.items[i].value;
 
-        if (token == '|') {
-            // Pop two fragments and union them
-            if (stack.length < 2) {
-                res.err = create_error("Invalid regex: not enough operands for |");
-                da_nfa_fragment_free(&stack);
-                return res;
+        result(input_op) operator = get_operator_from_symbol(symbol);
+
+        if (is_ok(operator)) {
+            UNAM_DEBUG("Got operator: %c\n", operator.val.symbol);
+
+            if (operator.val.arguments == 1) {
+                nfa_fragment* f1 = da_nfa_fragment_pop(&fragments);
+                must(be_not_null(f1));
+                switch (symbol) {
+                case '*': {
+                    da_nfa_fragment_append(&fragments, fragment_kleene_star(*f1));
+                    break;
+                }
+                case '+': {
+                    da_nfa_fragment_append(&fragments, fragment_plus(*f1));
+                    break;
+                }
+                case '?': {
+                    da_nfa_fragment_append(&fragments, fragment_optional(*f1));
+                    break;
+                }
+                default: {
+                    return_err(nfa, "Got invalid unary operator: '%c'", symbol);
+                }
+                }
             }
-
-            nfa_fragment b = *da_nfa_fragment_pop(&stack);
-            nfa_fragment a = *da_nfa_fragment_pop(&stack);
-
-            nfa_fragment result_frag = union_nfa(a, b);
-            da_nfa_fragment_append(&stack, result_frag);
-        }
-        else if (token == '.') {
-            // Pop two fragments and concatenate them
-            if (stack.length < 2) {
-                res.err = create_error("Invalid regex: not enough operands for .");
-                da_nfa_fragment_free(&stack);
-                return res;
+            else if (operator.val.arguments == 2) {
+                nfa_fragment* f2 = da_nfa_fragment_pop(&fragments);
+                nfa_fragment* f1 = da_nfa_fragment_pop(&fragments);
+                must(be_not_null(f1));
+                must(be_not_null(f2));
+                switch (symbol) {
+                case '.': {
+                    da_nfa_fragment_append(&fragments, fragment_concat(*f1, *f2));
+                    break;
+                }
+                case '|': {
+                    da_nfa_fragment_append(&fragments, fragment_union(*f1, *f2));
+                    break;
+                }
+                default: {
+                    return_err(nfa, "Got invalid binary operator: '%c'", symbol);
+                }
+                }
             }
-
-            nfa_fragment b = *da_nfa_fragment_pop(&stack);
-            nfa_fragment a = *da_nfa_fragment_pop(&stack);
-
-            nfa_fragment result_frag = concat(a, b);
-            da_nfa_fragment_append(&stack, result_frag);
-        }
-        else if (token == '*') {
-            // Pop one fragment and apply kleene star
-            if (stack.length < 1) {
-                res.err = create_error("Invalid regex: not enough operands for *");
-                da_nfa_fragment_free(&stack);
-                return res;
-            }
-
-            nfa_fragment a = *da_nfa_fragment_pop(&stack);
-            nfa_fragment result_frag = kleene(a);
-            da_nfa_fragment_append(&stack, result_frag);
-        }
-        else if (token == '+') {
-            // Pop one fragment and apply plus (one or more)
-            if (stack.length < 1) {
-                res.err = create_error("Invalid regex: not enough operands for +");
-                da_nfa_fragment_free(&stack);
-                return res;
-            }
-
-            nfa_fragment a = *da_nfa_fragment_pop(&stack);
-            nfa_fragment result_frag = plus(a);
-            da_nfa_fragment_append(&stack, result_frag);
-        }
-        else if (token == '?') {
-            // Pop one fragment and apply question mark (zero or one) (is this working?)
-            if (stack.length < 1) {
-                res.err = create_error("Invalid regex: not enough operands for ?");
-                da_nfa_fragment_free(&stack);
-                return res;
-            }
-
-            nfa_fragment a = *da_nfa_fragment_pop(&stack);
-            nfa_fragment result_frag = question(a);
-            da_nfa_fragment_append(&stack, result_frag);
-        }
-        else {
-            // Operand: create atom
-            nfa_fragment atom = create_atom(token);
-            da_nfa_fragment_append(&stack, atom);
+        } else {
+            nfa_fragment frag = fragment_atom(symbol);
+            UNAM_DEBUG("Got operand: %c\n", symbol);
+            da_nfa_fragment_append(&fragments, frag);
         }
     }
 
-    // Should have exactly one fragment on stack!!!!
-    if (stack.length != 1) {
-        res.err = create_error("Invalid regex: incorrect number of operands");
-        da_nfa_fragment_free(&stack);
-        return res;
+    if (fragments.length != 1) {
+        da_free(&fragments);
+        for (int i = 0; i < fragments.length; i++) {
+            free_fragment(&fragments.data[i]);
+        }
+        return_err(nfa, "Postfix regex is malformed: the number of operators didn't match the operant's")
     }
 
-    nfa_fragment final_frag = stack.data[0];
-    final_frag.accept->is_accept = true;
+    fragments.data[0].accept->is_accept = true;
 
-    res.val.origin = final_frag.start;
-    res.val.node_count = g_node_id;
+    res.val.origin = fragments.data[0].start;
+    res.val.node_count = global_node_id;
+    da_free(&fragments);
 
-    da_nfa_fragment_free(&stack);
+    UNAM_DEBUGP("\n");
+    UNAM_DEBUG("== Parsed NFA\n");
+    print_nfa(res.val);
+    UNAM_DEBUG("\n");
 
     return res;
+}
+
+static void move_over_closures(nfa_node* node, da_nfa_node* visited_nodes) {
+    for (int i = 0; i < visited_nodes->length; i++) {
+        if (visited_nodes->data[i] == node) {
+            return;
+        }
+    }
+    UNAM_DEBUG("ε closure for node %d:\n", node->id);
+
+    da_nfa_node_append(visited_nodes, node);
+
+    for (int t = 0; t < node->trans_count; t++) {
+        transition* trans = &node->trans[t];
+        UNAM_DEBUG(" - transition #%d: (%d) -%c-> (%d)\n", t, node->id, trans->on, trans->target->id);
+    }
+
+    for (int t = 0; t < node->trans_count; t++) {
+        transition* trans = &node->trans[t];
+        if (node->trans[t].on == TRANSITION_EPSILON) {
+            move_over_closures(node->trans[t].target, visited_nodes);
+        }
+    }
+}
+
+// Simulate NFA matching
+static bool match_nfa(nfa n, char* buf, int buflen) {
+    if (!n.origin) return false;
+    int capacity = buflen > 0 ? buflen : 4;
+
+    da_nfa_node current_states = {0};
+    da_nfa_node new_states = {0};
+    da_nfa_node_init(&current_states, capacity);
+    da_nfa_node_init(&new_states, capacity);
+
+    nfa_node* origin_node = n.origin;
+    move_over_closures(origin_node, &current_states);
+
+    for (int i = 0; i < buflen; i++) {
+        char c = buf[i];
+        UNAM_DEBUGP("\n");
+        UNAM_DEBUG("== Processing character %c\n", c);
+
+        UNAM_DEBUG(" current states: ");
+        for (int i = 0; i < current_states.length; i++) {
+            nfa_node* node = current_states.data[i];
+            UNAM_DEBUGP("%d, ", node->id);
+        }
+        UNAM_DEBUGP("\n");
+
+        for (int s = 0; s < current_states.length; s++) {
+            nfa_node* node = current_states.data[s];
+            UNAM_DEBUG(" visiting node %d:\n", node->id);
+
+            for (int t = 0; t < node->trans_count; t++) {
+                transition* trans = &node->trans[t];
+                UNAM_DEBUG("  - transition #%d: (%d) -%c-> (%d) ", t, node->id, trans->on, trans->target->id);
+                if (trans->on == c) {
+                    UNAM_DEBUGP("✅");
+                    da_nfa_node_append(&new_states, trans->target);
+                } else {
+                    UNAM_DEBUGP("❌");
+                }
+                UNAM_DEBUGP("\n");
+            }
+        }
+
+        // Now we will temporarily switch roles between the new and the current
+        da_drain(&current_states);
+
+        // We move over epsilon transitions and store it in the current
+        for (int i = 0; i < new_states.length; i++) {
+            nfa_node* node = new_states.data[i];
+            move_over_closures(node, &current_states);
+        }
+
+        // And empty out the new for the next iteration
+        da_drain(&new_states);
+    }
+
+    // Check if we landed in an accepted state
+    for (int i = 0; i < current_states.length; i++) {
+        if (current_states.data[i]->is_accept) {
+            return true;
+        }
+    }
+
+    return false;
 }

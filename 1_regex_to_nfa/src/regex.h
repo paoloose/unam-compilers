@@ -5,8 +5,9 @@
 #include "result.h"
 #include "da.h"
 
-static inline result(input_op) get_operator_from_symbol(char symbol) {
+static result(input_op) get_operator_from_symbol(char symbol) {
     input_op op = { 1, 1 };
+    op.symbol = symbol;
 
     switch (symbol) {
     case '*': {
@@ -34,147 +35,139 @@ static inline result(input_op) get_operator_from_symbol(char symbol) {
         op.arguments = 2;
         return_ok_with(input_op, op);
     }
-    default:
+    case ')':
+    case '(': {
+        op.precedence = 0;
+        op.arguments = 0;
+        return_ok_with(input_op, op);
+    }
+    default: {
         return_err(input_op, "Got unknown character for regex: '%c'", symbol);
+    }
     }
 }
 
-static inline int is_operator(char c) {
-    // TODO: too much repetition, maybe we can globally define these operators?
-    return c == '*' || c == '+' || c == '?' || c == '|' || c == '.';
+static bool is_operator(char symbol) {
+    return is_ok(get_operator_from_symbol(symbol));
 }
 
-static inline int is_operand(char c) {
-    return c != '(' && c != ')' && c != '|' && c != '*' && c != '+' && c != '?' && c != '.' && c != '\0';
+static bool is_operand(char symbol) {
+    return is_err(get_operator_from_symbol(symbol));
 }
 
-static inline result(regex) parse_regex(const char* str) {
+static bool is_unary(char symbol) {
+    result(input_op) op = get_operator_from_symbol(symbol);
+    if (is_err(op)) return false;
+    return op.val.arguments == 1;
+}
+
+static result(regex) parse_regex(const char* input) {
     result(regex) res = {0};
+    size_t input_len = strlen(input);
 
-    if (!str || *str == '\0') {
+    if (input_len == 0) {
         res.err = create_error("Empty regex string");
         return res;
     }
 
-    // First pass: insert explicit concatenation operator '.'
-    da_char infix = {0};
-    da_char_init(&infix, 128);
+    // Step 1: we add explicit concatenation
 
-    for (int i = 0; str[i] != '\0'; i++) {
-        char c = str[i];
+    da_char new_str = {0};
+    da_char_init(&new_str, input_len * 2);
 
-        if (infix.length > 0) {
-            char prev = infix.data[infix.length - 1];
-
-            // Need to insert '.' if:
-            // prev is: operand, ')', '*', '+', or '?'
-            // and c is: operand or '('
-            int prev_ends = is_operand(prev) || prev == ')' || prev == '*' || prev == '+' || prev == '?';
-            int curr_starts = is_operand(c) || c == '(';
-
-            if (prev_ends && curr_starts) {
-                da_char_append(&infix, '.');
-            }
+    for (int i = 0; i < input_len; i++) {
+        char curr = input[i];
+        if (i == 0) {
+            da_char_append(&new_str, curr);
+            continue;
         }
+        char before = input[i-1];
 
-        da_char_append(&infix, c);
+        bool before_matches = before == ')' || is_operand(before) || is_unary(before);
+        bool current_matches = curr == '(' || is_operand(curr);
+
+        if (before_matches && current_matches) {
+            da_char_append(&new_str, '.');
+        }
+        da_char_append(&new_str, curr);
     }
 
-    // DEBUG: print infix
-    // printf("Infix: ");
-    // for (int i = 0; i < infix.length; i++) printf("%c", infix.data[i]);
-    // printf("\n");
+    char* new_input = calloc(sizeof(char), new_str.length + 1);
+    int new_input_len = new_str.length;
+    for (int i = 0; i < new_str.length; i++) {
+        new_input[i] = new_str.data[i];
+    }
+    UNAM_DEBUG("inserted concatenations: %s\n", new_input);
 
-    // Second pass: Shunting yard algorithm
-    da_char output = {0};
-    da_char op_stack = {0};
-    da_char_init(&output, 128);
-    da_char_init(&op_stack, 64);
+    da_input_op holding_stack = {0};
+    da_char output_stack = {0};
 
-    for (int i = 0; i < infix.length; i++) {
-        char token = infix.data[i];
+    da_input_op_init(&holding_stack, 16);
+    da_char_init(&output_stack, 16);
 
-        if (is_operand(token)) {
-            // Operand goes to output
-            da_char_append(&output, token);
+    for (int i = 0; i < new_input_len; i++) {
+        char curr = new_input[i];
+        // Operands go directly to the output stack
+        if (is_operand(curr)) {
+            da_char_append(&output_stack, curr);
+            continue;
         }
-        else if (token == '(') {
-            // Push ( to stack
-            da_char_append(&op_stack, token);
+        // If it's not an operand, then it's an operator
+        result(input_op) maybe_op = get_operator_from_symbol(curr);
+        must(maybe_op);
+        input_op op = maybe_op.val;
+
+        if (op.symbol == '(') {
+            da_input_op_append(&holding_stack, op);
+            continue;
         }
-        else if (token == ')') {
-            // Pop until we find (
-            int found = 0;
-            while (op_stack.length > 0) {
-                char top = *da_char_pop(&op_stack);
-                if (top == '(') {
-                    found = 1;
+        if (op.symbol == ')') {
+            char popped = '\0';
+            // We pop all the operators until we reach the open parenthesis
+            while (true) {
+                popped = da_input_op_pop(&holding_stack)->symbol;
+                if (popped == '(') {
                     break;
                 }
-                da_char_append(&output, top);
+                da_char_append(&output_stack, popped);
+            }
+            continue;
+        }
+
+        while (!da_empty(&holding_stack)) {
+            input_op* last_op = da_input_op_peek_last(&holding_stack);
+            must(be_not_null(last_op), "Peek failed but array was supposed to be not empty");
+
+            if (last_op->symbol == '(') {
+                // we do not go beyond the current "context"
+                break;
             }
 
-            if (!found) {
-                res.err = create_error("Mismatched parentheses");
-                da_char_free(&infix);
-                da_char_free(&output);
-                da_char_free(&op_stack);
-                return res;
+            if (last_op->precedence >= op.precedence) {
+                da_char_append(&output_stack, da_input_op_pop(&holding_stack)->symbol);
+            } else {
+                break;
             }
         }
-        else if (is_operator(token)) {
-            // Get current operator precedence
-            result(input_op) curr_res = get_operator_from_symbol(token);
-            must(curr_res);
-            int curr_prec = curr_res.val.precedence;
-
-            // Pop operators with higher or equal precedence (left-associative)
-            while (op_stack.length > 0) {
-                char top = op_stack.data[op_stack.length - 1];
-
-                if (top == '(') break;
-
-                result(input_op) top_res = get_operator_from_symbol(top);
-                if (top_res.err != nil) break;  // Not an operator
-
-                int top_prec = top_res.val.precedence;
-                if (top_prec >= curr_prec) {
-                    da_char_append(&output, *da_char_pop(&op_stack));
-                } else {
-                    break;
-                }
-            }
-
-            // Push current operator
-            da_char_append(&op_stack, token);
-        }
+        da_input_op_append(&holding_stack, op);
     }
 
-    // Pop all remaining operators
-    while (op_stack.length > 0) {
-        char top = *da_char_pop(&op_stack);
-        if (top == '(' || top == ')') {
-            res.err = create_error("Mismatched parentheses");
-            da_char_free(&infix);
-            da_char_free(&output);
-            da_char_free(&op_stack);
-            return res;
-        }
-        da_char_append(&output, top);
+    while (!da_empty(&holding_stack)) {
+        da_char_append(&output_stack, da_input_op_pop(&holding_stack)->symbol);
     }
 
-    // Build result
-    res.val.size = output.length;
-    res.val.items = (regex_item*)malloc(sizeof(regex_item) * output.length);
-    must(res.val.items, "Failed to allocate regex items");
+    // And then we copy the output to our new regex
+    res.val.items = calloc(sizeof(regex_item), output_stack.length);
+    res.val.size = output_stack.length;
 
-    for (int i = 0; i < output.length; i++) {
-        res.val.items[i].value = output.data[i];
+    for (int i = 0; i < res.val.size; i++) {
+        regex_item item = { .value = output_stack.data[i] };
+        res.val.items[i] = item;
     }
 
-    da_char_free(&infix);
-    da_char_free(&output);
-    da_char_free(&op_stack);
+    da_free(&new_str);
+    da_free(&holding_stack);
+    da_free(&output_stack);
 
     return res;
 }
