@@ -7,29 +7,43 @@
 void sym_insert(SymTableEntry** table, const char *name, int line, int col) {
     assert(table != NULL);
 
-    SymTableEntry* curr = *table;
+    SymTableEntry* curr_sym = *table;
+    SymOccurrence* occ = malloc(sizeof(SymOccurrence));
+    occ->line = line;
+    occ->col = col;
 
-    while (curr) {
-        if (strcmp(curr->name, name) == 0) {
-            curr->occurrences++;
+    while (curr_sym) {
+        if (strcmp(curr_sym->name, name) == 0) {
+            // Found! We create a new ocurrence entry for this symbol
+            SymOccurrence* curr_occ = curr_sym->occurrences;
+            while (curr_occ) {
+                if (curr_occ->next == NULL) break;
+                curr_occ = curr_occ->next;
+            }
+            curr_occ->next = occ;
+            curr_sym->n_occurrences++;
             return;
         }
 
-        if (curr->next == NULL) break;
-        curr = curr->next;
+        if (curr_sym->next == NULL) break;
+        curr_sym = curr_sym->next;
     }
+
+    // Not found. This is either a new name, or an unitialized table
+    // Either way, we allocate memory for this new entry
 
     SymTableEntry* new_entry = malloc(sizeof(SymTableEntry));
     new_entry->col = col;
     new_entry->line = line;
     new_entry->name = strdup(name);
-    new_entry->occurrences = 1;
     new_entry->next = NULL;
+    new_entry->n_occurrences = 1;
+    new_entry->occurrences = occ;
 
-    if (curr == NULL) {
+    if (curr_sym == NULL) {
         *table = new_entry;
     } else {
-        curr->next = new_entry;
+        curr_sym->next = new_entry;
     }
 }
 
@@ -60,7 +74,10 @@ void sym_print_all(SymTableEntry* table) {
     printf("--------------\n");
 
     while (last_entry) {
-        printf("%s: %d occurrences\n", last_entry->name, last_entry->occurrences);
+        printf("\n%s: %d occurrences\n", last_entry->name, last_entry->n_occurrences);
+        for (SymOccurrence* occ = last_entry->occurrences; occ != NULL; occ = occ->next) {
+            printf(" - line: %d, col: %d\n", occ->line, occ->col);
+        }
         last_entry = last_entry->next;
     }
 }
@@ -71,10 +88,18 @@ void sym_free(SymTableEntry** table) {
     SymTableEntry* last_entry = *table;
 
     while (last_entry) {
-        SymTableEntry* next_direction = last_entry->next;
+        SymTableEntry* next_entry = last_entry->next;
+
+        SymOccurrence* occ = last_entry->occurrences;
+        while (occ) {
+            SymOccurrence* next_ocurrence = occ->next;
+            free(occ);
+            occ = next_ocurrence;
+        }
+
         free(last_entry->name);
         free(last_entry);
-        last_entry = next_direction;
+        last_entry = next_entry;
     }
 
     *table = NULL;

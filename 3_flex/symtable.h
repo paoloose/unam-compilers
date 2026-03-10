@@ -1,11 +1,17 @@
 #ifndef SYMTABLE_H
 #define SYMTABLE_H
 
+typedef struct SymOccurrence {
+    int line, col;
+    struct SymOccurrence* next;
+} SymOccurrence;
+
 typedef struct SymTableEntry {
     char *name;
     int  line;
     int  col;
-    int  occurrences;
+    int n_occurrences;
+    SymOccurrence* occurrences;
     struct SymTableEntry* next;
 } SymTableEntry;
 
