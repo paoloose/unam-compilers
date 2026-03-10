@@ -1,6 +1,8 @@
 #ifndef SCANNER_H
 #define SCANNER_H
 
+#include "symtable.h"
+
 /* ── Token definitions ─────────────────────────────────────────────────── */
 typedef enum ScannerToken {
 	TOK_EOF = 0,
@@ -62,14 +64,13 @@ typedef enum ScannerToken {
 	TOK_COMMA,
 	TOK_SEMICOLON,
 
-	/* Preprocessor directives */
-	TOK_PP_INCLUDE,    /* #include … */
-	TOK_PP_DEFINE,     /* #define  … */
 } ScannerToken;
 
-// Positions exposed and maintained by the scanner
+// Positions exposed and maintained by the scanner (lex.yy.c)
 extern int tok_line;
 extern int tok_col;
+
+extern SymTableEntry* symbols_table;
 
 const char *scanner_token_name(int token);
 

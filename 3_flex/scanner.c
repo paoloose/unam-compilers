@@ -1,5 +1,5 @@
 #include <stdio.h>
-
+#include "symtable.h"
 #include "scanner.h"
 
 extern int   yylex(void);
@@ -32,6 +32,9 @@ int main(void)
 			);
         }
 	}
+
+	sym_print_all(symbols_table);
+	sym_free(&symbols_table);
 
 	return 0;
 }
@@ -97,9 +100,6 @@ const char *scanner_token_name(int token)
 		case TOK_RBRACKET: return "RBRACKET";
 		case TOK_COMMA: return "COMMA";
 		case TOK_SEMICOLON: return "SEMICOLON";
-
-		case TOK_PP_INCLUDE: return "PP_INCLUDE";
-		case TOK_PP_DEFINE: return "PP_DEFINE";
 
 		default: return "UNKNOWN";
 	}

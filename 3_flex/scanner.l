@@ -8,6 +8,8 @@ int tok_line = 1;
 int tok_col = 1;
 int yycolumn = 1; /* running column counter (1-based) */
 
+SymTableEntry* symbols_table;
+
 /*
  * Flex runs the YY_USER_ACTION snippet before every rule's action
 */
@@ -39,9 +41,6 @@ STRING \"([^"\\]|\\.)*\"
 <COMMENT>\n       ;
 <COMMENT><<EOF>>  { return TOK_ERROR; }
 "//"[^\n]*        ;
-
-"^#include"
-"^#
 
 {WS}              ;
 
@@ -94,7 +93,11 @@ STRING \"([^"\\]|\\.)*\"
 {FLOAT}           { return TOK_FLOAT_LITERAL; }
 {CHAR}            { return TOK_CHAR_LITERAL; }
 {STRING}          { return TOK_STRING_LITERAL; }
-{ID}              { return TOK_IDENTIFIER; }
+{ID}              {
+	sym_insert(&symbols_table, yytext, tok_line, tok_col);
+	return TOK_IDENTIFIER;
+}
+
 {HEX} {
   errno = 0;
   strtoull(yytext, NULL, 16);

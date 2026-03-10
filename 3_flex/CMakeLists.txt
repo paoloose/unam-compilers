@@ -18,7 +18,10 @@ add_custom_command(
 
 add_library(scanner STATIC ${SCANNER_C_FILE})
 
-add_executable(scanner_cli ${CMAKE_CURRENT_SOURCE_DIR}/scanner.c)
+add_executable(scanner_cli
+    ${CMAKE_CURRENT_SOURCE_DIR}/scanner.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/symtable.c
+)
 
 target_link_libraries(scanner_cli PRIVATE scanner)
 
