@@ -2,7 +2,7 @@
 
 #include "scanner.h"
 
-extern int yylex(void);
+extern int   yylex(void);
 extern char *yytext;
 
 int main(void)
@@ -24,7 +24,15 @@ int main(void)
 
 	int token;
 	while ((token = yylex()) != TOK_EOF) {
-		printf("[%s:%s]\n", scanner_token_name(token), yytext);
+		printf(
+			"[%s:%s]\n", scanner_token_name(token), yytext, tok_line, tok_col
+		);
+		if (token == TOK_ERROR) {
+			/* Column-aware error message */
+            fprintf(
+				stderr, "Error at line %d, col %d: unexpected character '%s'\n", tok_line, tok_col, yytext
+			);
+        }
 	}
 
 	return 0;
@@ -54,6 +62,8 @@ const char *scanner_token_name(int token)
 		case TOK_FLOAT_LITERAL: return "FLOAT_LITERAL";
 		case TOK_STRING_LITERAL: return "STRING_LITERAL";
 		case TOK_CHAR_LITERAL: return "CHAR_LITERAL";
+        case TOK_HEX_LITERAL:    return "HEX_LITERAL";
+        case TOK_OCT_LITERAL:    return "OCT_LITERAL";
 
 		case TOK_INC: return "INC";
 		case TOK_DEC: return "DEC";
@@ -89,6 +99,10 @@ const char *scanner_token_name(int token)
 		case TOK_RBRACKET: return "RBRACKET";
 		case TOK_COMMA: return "COMMA";
 		case TOK_SEMICOLON: return "SEMICOLON";
+
+		case TOK_PP_INCLUDE: return "PP_INCLUDE";
+		case TOK_PP_DEFINE: return "PP_DEFINE";
+
 		default: return "UNKNOWN";
 	}
 }

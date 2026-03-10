@@ -1,14 +1,32 @@
 %option noyywrap yylineno
 
 %{
-	#include "scanner.h"
+#include <errno.h>
+#include "scanner.h"
+
+int tok_line = 1;
+int tok_col = 1;
+int yycolumn = 1; /* running column counter (1-based) */
+
+/*
+ * Flex runs the YY_USER_ACTION snippet before every rule's action
+*/
+#define YY_USER_ACTION \
+	tok_line = yylineno; \
+	tok_col = yycolumn; \
+	yycolumn = (yytext[0] == '\n') ? 1 : yycolumn + yyleng;
 %}
 
+%x PP_INCLUDE
+%x PP_DEFINE
 %x COMMENT
 
 ID     [a-zA-Z_][a-zA-Z_0-9]*
-INT    [0-9]+
-FLOAT  ({INT}\.{INT})|({INT}(\.{INT})?[eE][+-]?{INT})
+NUM    [0-9]+
+INT    0|([1-9]+[0-9]*)
+HEX    0[xX][A-Fa-f0-9]+
+OCT    0[0-7]+
+FLOAT  ({NUM}\.{NUM})|({NUM}(\.{NUM})?[eE][+-]?{NUM})
 WS     [ \t\r\n]+
 CHAR   '([^'\\]|\\.)'
 STRING \"([^"\\]|\\.)*\"
@@ -21,6 +39,9 @@ STRING \"([^"\\]|\\.)*\"
 <COMMENT>\n       ;
 <COMMENT><<EOF>>  { return TOK_ERROR; }
 "//"[^\n]*        ;
+
+"^#include"
+"^#
 
 {WS}              ;
 
@@ -71,10 +92,31 @@ STRING \"([^"\\]|\\.)*\"
 ";"               { return TOK_SEMICOLON; }
 
 {FLOAT}           { return TOK_FLOAT_LITERAL; }
-{INT}             { return TOK_INT_LITERAL; }
 {CHAR}            { return TOK_CHAR_LITERAL; }
 {STRING}          { return TOK_STRING_LITERAL; }
 {ID}              { return TOK_IDENTIFIER; }
+{HEX} {
+  errno = 0;
+  strtoull(yytext, NULL, 16);
+  return errno == ERANGE || errno == EINVAL ? TOK_ERROR : TOK_HEX_LITERAL;
+}
+{OCT} {
+  errno = 0;
+  strtoull(yytext, NULL, 8);
+  return errno == ERANGE || errno == EINVAL ? TOK_ERROR : TOK_OCT_LITERAL;
+}
+{INT} {
+  errno = 0;
+  strtoull(yytext, NULL, 10);
+  return errno == ERANGE || errno == EINVAL ? TOK_ERROR : TOK_INT_LITERAL;
+}
+
+
+{FLOAT}[a-zA-Z_][a-zA-Z0-9_]*  { return TOK_ERROR; }
+{HEX}[a-zA-Z_][a-zA-Z0-9_]*    { return TOK_ERROR; }
+{OCT}[a-zA-Z_][a-zA-Z0-9_]*    { return TOK_ERROR; }
+{INT}[a-zA-Z_][a-zA-Z0-9_]*    { return TOK_ERROR; }
+0[0-9]+                        { return TOK_ERROR; }
 
 <<EOF>>           { return TOK_EOF; }
 .                 { return TOK_ERROR; }
