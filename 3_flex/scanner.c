@@ -24,9 +24,7 @@ int main(void)
 
 	int token;
 	while ((token = yylex()) != TOK_EOF) {
-		printf(
-			"[%s:%s]\n", scanner_token_name(token), yytext, tok_line, tok_col
-		);
+		printf("[%s:%s]\n", scanner_token_name(token), yytext);
 		if (token == TOK_ERROR) {
 			/* Column-aware error message */
             fprintf(
