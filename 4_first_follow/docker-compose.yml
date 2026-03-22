@@ -1,0 +1,7 @@
+services:
+  main:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - .:/first_and_follow:rw
