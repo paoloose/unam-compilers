@@ -1,5 +1,10 @@
 #!/bin/bash
 
+# This file invokes the syntax analyzer agains a set of input files in a directory
+
+# Usage
+# run_tests.sh <directory>
+
 INPUT_DIR=$1
 GRAMMAR_FILE="part_1/grammar.txt"
 EXECUTABLE="./build/first_and_follow"
