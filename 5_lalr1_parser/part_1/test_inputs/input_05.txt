@@ -1,0 +1,3 @@
+while (true) {
+  a = a - 1;
+}

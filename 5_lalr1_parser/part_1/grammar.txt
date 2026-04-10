@@ -1,0 +1,19 @@
+Non-terminals: StmtList Stmt Expr Term Factor
+Terminals: let id = if ( ) while { } + - * / num ;
+
+StmtList -> StmtList Stmt
+StmtList -> Stmt
+Stmt -> let id = Expr ;
+Stmt -> id = Expr ;
+Stmt -> if ( Expr ) Stmt
+Stmt -> while ( Expr ) Stmt
+Stmt -> { StmtList }
+Expr -> Expr + Term
+Expr -> Expr - Term
+Expr -> Term
+Term -> Term * Factor
+Term -> Term / Factor
+Term -> Factor
+Factor -> ( Expr )
+Factor -> id
+Factor -> num

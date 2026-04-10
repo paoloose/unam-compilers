@@ -1,0 +1,36 @@
+#!/bin/bash
+
+INPUT_DIR=$1
+GRAMMAR_FILE="part_1/grammar.txt"
+EXECUTABLE="./build/first_and_follow"
+
+if [ -z "$INPUT_DIR" ]; then
+  echo "Usage: $0 <directory>"
+  exit 1
+fi
+
+if [ ! -f "$EXECUTABLE" ]; then
+  echo "Error: Executable not found at $EXECUTABLE"
+  echo "Please build the project first."
+  exit 1
+fi
+
+if [ ! -f "$GRAMMAR_FILE" ]; then
+  echo "Error: Grammar file not found at $GRAMMAR_FILE"
+  exit 1
+fi
+
+for test_file in "$INPUT_DIR"/*; do
+  $EXECUTABLE $GRAMMAR_FILE $test_file > /dev/null
+  echo --------------------------------
+  echo $test_file
+
+  if [ $? = 0 ]; then
+    echo "Result: PASSED"
+  else
+    echo "Result: FAILED"
+  fi
+done
+
+echo
+echo "-> All tests finished."
