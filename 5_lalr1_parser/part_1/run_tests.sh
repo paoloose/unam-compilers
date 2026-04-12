@@ -26,14 +26,29 @@ if [ ! -f "$GRAMMAR_FILE" ]; then
 fi
 
 for test_file in "$INPUT_DIR"/*; do
-  $EXECUTABLE $GRAMMAR_FILE $test_file > /dev/null
+  $EXECUTABLE $GRAMMAR_FILE $test_file > /dev/null 2>&1
+  status=$?
   echo --------------------------------
   echo $test_file
 
-  if [ $? = 0 ]; then
-    echo "Result: PASSED"
+  if [[ "$test_file" == *"accept.txt" ]]; then
+    if [ $status -eq 0 ]; then
+      echo "Result: OK (Expected accept, got accept)"
+    else
+      echo "Result: FAILED (Expected accept, got reject)"
+    fi
+  elif [[ "$test_file" == *"reject.txt" ]]; then
+    if [ $status -ne 0 ]; then
+      echo "Result: OK (Expected reject, got reject)"
+    else
+      echo "Result: FAILED (Expected reject, got accept)"
+    fi
   else
-    echo "Result: FAILED"
+    if [ $status -eq 0 ]; then
+      echo "Result: ACCEPTED"
+    else
+      echo "Result: REJECTED"
+    fi
   fi
 done
 
