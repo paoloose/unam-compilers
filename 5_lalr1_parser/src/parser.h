@@ -1,8 +1,6 @@
-#ifndef PARSER_H
-#define PARSER_H
+#pragma once
 
 #include <stdbool.h>
-
 #include "automaton.h"
 
 typedef enum parser_action_type
@@ -95,4 +93,10 @@ bool save_parser_table_json(const parser_table *table, const char *output_path);
  */
 bool save_parser_table(const parser_table *table, const char *output_path);
 
-#endif // PARSER_H
+/**
+ * @brief Case-insensitive check if a string ends with a given suffix.
+ * @param text The string to check.
+ * @param suffix The suffix to look for.
+ * @return true if `text` ends with `suffix`, false otherwise.
+ */
+static bool has_suffix(const char *text, const char *suffix);
