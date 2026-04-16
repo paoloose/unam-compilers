@@ -2,15 +2,20 @@
 #include "automaton.h"
 #include "parser.h"
 #include "scanner.h"
+#include "tree.h"
+#include "dot_generator.h"
 
 #include <errno.h>
+#include <string.h>
 
-static bool has_suffix(const char *text, const char *suffix);
-
+// External variables from the Flex-generated scanner.
 extern int yylex(void);
 extern char *yytext;
 extern FILE *yyin;
 
+/**
+ * @brief Holds the components of a single token from the lexer.
+ */
 typedef struct token_stream
 {
     int lexer_token;
@@ -18,6 +23,9 @@ typedef struct token_stream
     const char *lexeme;
 } token_stream;
 
+/**
+ * @brief Represents the parser's state stack.
+ */
 typedef struct parser_stack
 {
     int *states;
@@ -26,8 +34,8 @@ typedef struct parser_stack
 } parser_stack;
 
 /**
- * @brief Reads complete stdin content into a dynamically allocated buffer.
- * @return Null-terminated buffer on success, or NULL when stdin is empty or on allocation error.
+ * @brief Reads complete file content into a dynamically allocated buffer.
+ * @return Null-terminated buffer on success, or NULL on file or allocation error.
  */
 static char *read_file_all(const char *path)
 {
@@ -92,6 +100,7 @@ static int find_terminal_id(const grammar *g, const char *symbol_name)
     {
         return -1;
     }
+
 
     for (int i = 0; i < g->num_terminals; i++)
     {
@@ -260,7 +269,7 @@ static bool push_state(parser_stack *stack, int state_id)
  */
 static bool pop_states(parser_stack *stack, int count)
 {
-    if (stack == NULL || count < 0 || stack->size - count <= 0)
+    if (stack == NULL || count < 0 || stack->size - count < 0)
     {
         return false;
     }
@@ -333,21 +342,30 @@ static bool next_token(const grammar *g, token_stream *out_token)
 }
 
 /**
- * @brief Runs an LALR shift-reduce parse against yylex token stream.
+ * @brief Runs an LALR shift-reduce parse and builds a parse tree.
  * @param g Parsed grammar.
  * @param table ACTION/GOTO table.
+ * @param root_node A pointer that will be set to the root of the parse tree on success.
  * @return true if input is accepted, false otherwise.
  */
-static bool parse_token_stream(const grammar *g, const parser_table *table)
+static bool parse_token_stream(const grammar *g, const parser_table *table, TreeNode **root_node)
 {
-    if (g == NULL || table == NULL)
+    if (g == NULL || table == NULL || root_node == NULL)
+    {
+        return false;
+    }
+    *root_node = NULL;
+
+    parser_stack state_stack;
+    if (!init_parser_stack(&state_stack))
     {
         return false;
     }
 
-    parser_stack stack;
-    if (!init_parser_stack(&stack))
+    node_stack tree_node_stack;
+    if (!init_node_stack(&tree_node_stack))
     {
+        free_parser_stack(&state_stack);
         return false;
     }
 
@@ -357,22 +375,23 @@ static bool parse_token_stream(const grammar *g, const parser_table *table)
         fprintf(stderr, "Lexer token could not be mapped to grammar terminal: '%s' (token=%d)\n",
                 yytext != NULL ? yytext : "",
                 lookahead.lexer_token);
-        free_parser_stack(&stack);
-        return false;
+        goto parse_error;
     }
 
     while (true)
     {
-        int state_id = top_state(&stack);
+        int state_id = top_state(&state_stack);
         parser_action action = get_parser_action(table, state_id, lookahead.terminal_id);
 
         if (action.type == PARSER_ACTION_SHIFT)
         {
-            if (!push_state(&stack, action.value))
-            {
-                fprintf(stderr, "Parser stack overflow while shifting.\n");
-                free_parser_stack(&stack);
-                return false;
+            if (!push_state(&state_stack, action.value)) {
+                goto parse_error;
+            }
+
+            TreeNode *leaf_node = create_tree_node(lookahead.lexeme);
+            if (!push_node(&tree_node_stack, leaf_node)) {
+                goto parse_error;
             }
 
             if (!next_token(g, &lookahead))
@@ -380,8 +399,7 @@ static bool parse_token_stream(const grammar *g, const parser_table *table)
                 fprintf(stderr, "Lexer token could not be mapped to grammar terminal: '%s' (token=%d)\n",
                         yytext != NULL ? yytext : "",
                         lookahead.lexer_token);
-                free_parser_stack(&stack);
-                return false;
+                goto parse_error;
             }
 
             continue;
@@ -392,37 +410,41 @@ static bool parse_token_stream(const grammar *g, const parser_table *table)
             if (action.value < 0 || action.value >= g->num_productions)
             {
                 fprintf(stderr, "Invalid reduction production index: %d\n", action.value);
-                free_parser_stack(&stack);
-                return false;
+                goto parse_error;
             }
 
             production p = g->productions[action.value];
             int pop_count = reduction_pop_count(g, p);
-            if (!pop_states(&stack, pop_count))
+
+            if (!pop_states(&state_stack, pop_count)) {
+                return false;
+            }
+
+            TreeNode *parent_node = create_tree_node(g->non_terminals[p.non_terminal_id].symbol);
+            parent_node->num_children = pop_count;
+            if (pop_count > 0)
             {
+                parent_node->children = (TreeNode **)malloc(sizeof(TreeNode *) * pop_count);
+                TreeNode **children_nodes = (TreeNode **)malloc(sizeof(TreeNode *) * pop_count);
+                if (!pop_nodes(&tree_node_stack, pop_count, children_nodes)) {
+                    return false;
+                }
+                for (int i = 0; i < pop_count; i++) {
+                    parent_node->children[i] = children_nodes[i];
+                }
+                free(children_nodes);
+            }
+
+            if(!push_node(&tree_node_stack, parent_node)) {
                 fprintf(stderr, "Invalid parser stack pop for production %d\n", action.value);
-                free_parser_stack(&stack);
-                return false;
+                goto parse_error;
             }
 
-            int goto_from = top_state(&stack);
+            int goto_from = top_state(&state_stack);
             int goto_state = get_parser_goto(table, goto_from, p.non_terminal_id);
-            if (goto_state < 0)
-            {
-                fprintf(stderr,
-                        "Missing GOTO[%d, %s] after reduction p%d\n",
-                        goto_from,
-                        g->non_terminals[p.non_terminal_id].symbol,
-                        action.value);
-                free_parser_stack(&stack);
-                return false;
-            }
-
-            if (!push_state(&stack, goto_state))
-            {
+            if (!push_state(&state_stack, goto_state)) {
                 fprintf(stderr, "Parser stack overflow after reduction.\n");
-                free_parser_stack(&stack);
-                return false;
+                goto parse_error;
             }
 
             continue;
@@ -430,31 +452,45 @@ static bool parse_token_stream(const grammar *g, const parser_table *table)
 
         if (action.type == PARSER_ACTION_ACCEPT)
         {
-            free_parser_stack(&stack);
+            if (tree_node_stack.size == 1) {
+                *root_node = tree_node_stack.nodes[0];
+            } else if (tree_node_stack.size > 1) {
+                // If there are multiple nodes, something is wrong, but let's not leak them
+                *root_node = tree_node_stack.nodes[0];
+                for(int i = 1; i < tree_node_stack.size; ++i) {
+                    free_tree(tree_node_stack.nodes[i]);
+                }
+            }
+
+            free_parser_stack(&state_stack);
+            free_node_stack(&tree_node_stack);
             return true;
         }
 
+        // PARSER_ACTION_ERROR
         fprintf(stderr,
                 "Syntax error at token '%s' (lexer=%d, terminal=%d) in state %d\n",
                 lookahead.lexeme,
                 lookahead.lexer_token,
                 lookahead.terminal_id,
                 state_id);
-        free_parser_stack(&stack);
+
+        for(int i=0; i<tree_node_stack.size; ++i)
+        {
+            free_tree(tree_node_stack.nodes[i]);
+        }
+
+    parse_error:
+        free_parser_stack(&state_stack);
+        free_node_stack(&tree_node_stack);
         return false;
     }
 }
 
-/**
- * @brief Program entry point. Builds LALR table and parses yylex token stream.
- * @param argc CLI argument count.
- * @param argv CLI argument vector.
- * @return 0 on accepted input, non-zero on error/reject.
- */
 int main(int argc, char **argv)
 {
     const char *source_path = NULL;
-    const char *table_output_path = "parse_table.csv";
+    const char *table_output_path = NULL;
 
     if (argc < 2)
     {
@@ -509,6 +545,7 @@ int main(int argc, char **argv)
         if (yyin == NULL)
         {
             fprintf(stderr, "Failed to open source file '%s': %s\n", source_path, strerror(errno));
+            free_grammar(g);
             return 1;
         }
     }
@@ -517,6 +554,7 @@ int main(int argc, char **argv)
     if (automaton == NULL)
     {
         fprintf(stderr, "Failed to build LALR(1) automaton.\n");
+        free_grammar(g);
         return 1;
     }
 
@@ -528,6 +566,7 @@ int main(int argc, char **argv)
     {
         fprintf(stderr, "Failed to build parsing table.\n");
         free_lalr1_automaton(automaton);
+        free_grammar(g);
         return 1;
     }
 
@@ -536,41 +575,42 @@ int main(int argc, char **argv)
         fprintf(stderr, "Warning: parser table has %d conflicts.\n", table->num_conflicts);
     }
 
-    print_parser_table(table);
-    printf("----------------\n\n");
+    // Always save the parse table now (actually please don't do it)
+    if (table_output_path != NULL) {
+        save_parser_table(table, table_output_path);
+        printf("Parsing table written to %s\n", table_output_path);
+    }
 
-    if (!save_parser_table(table, table_output_path))
-    {
-        fprintf(stderr, "Failed to save parsing table to '%s'. Use .csv or .json extension.\n", table_output_path);
-        free_parser_table(table);
-        free_lalr1_automaton(automaton);
-        if (source_path != NULL && yyin != NULL)
+    bool overall_accepted = true;
+    if(source_path != NULL) {
+        TreeNode *parse_tree_root = NULL;
+        bool accepted = parse_token_stream(g, table, &parse_tree_root);
+        if (accepted)
         {
-            fclose(yyin);
+            printf("Input accepted.\n");
+            if (parse_tree_root != NULL)
+            {
+                generate_dot_file(parse_tree_root, "derivation_tree.dot");
+                free_tree(parse_tree_root);
+            }
         }
-        return 1;
-    }
-    printf("Parsing table written to %s\n", table_output_path);
-
-    bool accepted = parse_token_stream(g, table);
-    if (accepted)
-    {
-        printf("Input accepted.\n");
-    }
-    else
-    {
-        printf("Input rejected.\n");
+        else
+        {
+            printf("Input rejected.\n");
+            overall_accepted = false;
+        }
     }
 
     free_parser_table(table);
     free_lalr1_automaton(automaton);
+    free_grammar(g);
 
     if (source_path != NULL && yyin != NULL)
     {
         fclose(yyin);
     }
 
-    return accepted ? 0 : 2;
+    return overall_accepted ? 0 : 2;
 }
 
 static bool has_suffix(const char *text, const char *suffix)
