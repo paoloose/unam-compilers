@@ -68,11 +68,12 @@ WS          [ \t\r\n]+
 "]"                     { return TOK_RBRACKET; }
 ","                     { return TOK_COMMA; }
 ";"                     { return TOK_SEMICOLON; }
+":"                     { return TOK_COLON; }
 
 {FLOAT}                 { return TOK_FLOAT_LITERAL; }
 {INT}                   { return TOK_INT_LITERAL; }
 \'([^\\\n]|\\.)\'    { return TOK_CHAR_LITERAL; }
-\"([^\\\n]|\\.)*\"  { return TOK_STRING_LITERAL; }
+\"(\\.|[^"\\])*\"  { return TOK_STRING_LITERAL; }
 {ID}                    { return TOK_IDENTIFIER; }
 
 <<EOF>>                 { return TOK_EOF; }

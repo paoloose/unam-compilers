@@ -58,7 +58,8 @@ typedef enum ScannerToken
     TOK_LBRACKET,
     TOK_RBRACKET,
     TOK_COMMA,
-    TOK_SEMICOLON
+    TOK_SEMICOLON,
+    TOK_COLON
 } ScannerToken;
 
 #endif // SCANNER_H
