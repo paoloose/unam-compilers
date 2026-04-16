@@ -459,3 +459,47 @@ void print_grammar(const grammar *g)
         printf("\n");
     }
 }
+
+/**
+ * @brief Frees the memory allocated for a grammar object.
+ * @param g Grammar to free.
+ */
+void free_grammar(grammar *g)
+{
+    if (g == NULL)
+    {
+        return;
+    }
+
+    if (g->non_terminals)
+    {
+        for (int i = 0; i < g->num_non_terminals; i++)
+        {
+            free(g->non_terminals[i].symbol);
+        }
+        free(g->non_terminals);
+    }
+
+    if (g->terminals)
+    {
+        for (int i = 0; i < g->num_terminals; i++)
+        {
+            free(g->terminals[i].symbol);
+        }
+        free(g->terminals);
+    }
+
+    if (g->productions)
+    {
+        for (int i = 0; i < g->num_productions; i++)
+        {
+            free(g->productions[i].production_symbol_ids);
+        }
+        free(g->productions);
+    }
+
+    free(g->non_terminal_index.entries);
+    free(g->terminal_index.entries);
+
+    free(g);
+}

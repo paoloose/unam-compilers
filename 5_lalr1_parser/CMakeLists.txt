@@ -3,6 +3,8 @@ project(first_and_follow C)
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g -fsanitize=address")
+set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fsanitize=address")
 
 find_package(FLEX REQUIRED)
 flex_target(generate_scanner
@@ -16,6 +18,8 @@ add_executable(first_and_follow
     ./src/analyzer.c
     ./src/automaton.c
     ./src/parser.c
+    ./src/tree.c
+    ./src/dot_generator.c
     ${FLEX_generate_scanner_OUTPUTS}
 )
 

@@ -61,4 +61,10 @@ grammar* create_grammar(const char* grammar_file_content);
  */
 void print_grammar(const grammar* g);
 
+/**
+ * @brief Frees the memory allocated for a grammar object.
+ * @param g Grammar to free.
+ */
+void free_grammar(grammar* g);
+
 #endif // GRAMMAR_H
