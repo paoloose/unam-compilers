@@ -132,12 +132,20 @@ bool lr1_closure(const grammar *g, lr1_state *state, int eof_lookahead_id)
 	{
 		changed = false;
 
-		// Snapshot current size because closure expansion can append new items.
+		// The closure algorithm is a fixed-point iteration
+		// It repeatedly scans the items in a state and adds new ones
+		// until a full pass results in no new items being added
+		changed = false;
+
+		// We only iterate over the initial set of items in the state (the "kernel")
+		// New items added during this loop will be processed in subsequent outer loops
 		const int base_count = state->num_items;
 		for (int item_index = 0; item_index < base_count; item_index++)
 		{
 			lr1_item item = state->items[item_index];
 
+			// We are looking for items of the form A -> a . B b
+			// where B is a non-terminal
 			int next_symbol = get_item_rhs_symbol(g, &item, item.dot_position);
 			if (next_symbol < g->num_terminals)
 			{
@@ -150,6 +158,8 @@ bool lr1_closure(const grammar *g, lr1_state *state, int eof_lookahead_id)
 				continue;
 			}
 
+			// For each such item, we need to find the lookaheads for new items
+			// The new lookaheads are FIRST(b, lookahead(A))
 			memset(lookahead_buffer, 0, (size_t)lookahead_count * sizeof(bool));
 			if (!compute_first_of_suffix_with_lookahead(
 					g,
@@ -165,6 +175,8 @@ bool lr1_closure(const grammar *g, lr1_state *state, int eof_lookahead_id)
 				return false;
 			}
 
+			// For each production rule B -> y, we add a new item
+			// [B -> . y, l] for each lookahead l found above
 			for (int production_index = 0; production_index < g->num_productions; production_index++)
 			{
 				if (g->productions[production_index].non_terminal_id != non_terminal_id)
@@ -222,6 +234,8 @@ bool lr1_goto(
 	free_lr1_state(out_state);
 	init_lr1_state(out_state);
 
+	// For every item in the source state, check if the symbol
+	// after the dot matches the symbol for this transition
 	for (int i = 0; i < from_state->num_items; i++)
 	{
 		lr1_item item = from_state->items[i];
@@ -231,6 +245,8 @@ bool lr1_goto(
 			continue;
 		}
 
+		// If it matches, create a new item with the dot advanced
+		// and add it to the kernel of the target state
 		item.dot_position++;
 		if (!add_lr1_item_unique(out_state, item))
 		{
@@ -244,6 +260,7 @@ bool lr1_goto(
 		return true;
 	}
 
+	// Finally, compute the closure of the new state's kernel
 	return lr1_closure(g, out_state, eof_lookahead_id);
 }
 
@@ -266,11 +283,13 @@ lr1_automaton *build_lr1_automaton(const grammar *g)
 	lr1_state start_state;
 	init_lr1_state(&start_state);
 
+	// initialize the augmented start item S' -> . S, $
 	lr1_item start_item;
 	start_item.production_index = -1;
 	start_item.dot_position = 0;
 	start_item.lookahead_id = automaton->eof_lookahead_id;
 
+	// compute the closure of the initial state
 	if (!add_lr1_item_unique(&start_state, start_item) ||
 		!lr1_closure(g, &start_state, automaton->eof_lookahead_id))
 	{
@@ -296,9 +315,11 @@ lr1_automaton *build_lr1_automaton(const grammar *g)
 		return NULL;
 	}
 
+	// iteratively discover new states by evaluating gotos
 	for (int state_id = 0; state_id < automaton->num_states; state_id++)
 	{
 		memset(symbols, 0, (size_t)symbols_count * sizeof(bool));
+		// find all symbols that appear after the dot in this state
 		if (!collect_goto_symbols(g, &automaton->states[state_id], symbols, symbols_count))
 		{
 			free(symbols);
@@ -316,6 +337,7 @@ lr1_automaton *build_lr1_automaton(const grammar *g)
 			lr1_state goto_state;
 			init_lr1_state(&goto_state);
 
+			// build the target state for this symbol transition
 			if (!lr1_goto(g, &automaton->states[state_id], symbol_id, automaton->eof_lookahead_id, &goto_state))
 			{
 				free_lr1_state(&goto_state);
@@ -330,6 +352,7 @@ lr1_automaton *build_lr1_automaton(const grammar *g)
 				continue;
 			}
 
+			// add the target state to the automaton if it is completely new
 			int target_id = find_state_index(automaton, &goto_state);
 			if (target_id < 0)
 			{
@@ -342,6 +365,7 @@ lr1_automaton *build_lr1_automaton(const grammar *g)
 				}
 			}
 
+			// connect the source state to the target state
 			if (!add_transition_unique(automaton, state_id, symbol_id, target_id))
 			{
 				free_lr1_state(&goto_state);
@@ -360,12 +384,19 @@ lr1_automaton *build_lr1_automaton(const grammar *g)
 
 lalr1_automaton *build_lalr1_automaton(const grammar *g)
 {
+	// This function converts the canonical LR(1) automaton into a LALR(1) automaton
+	// This is done by merging states that have the same "core"
+	// (the same set of productions and dot positions, but different lookaheads)
+
+	// First, we build the full, un-merged LR(1) automaton
 	lr1_automaton *lr1 = build_lr1_automaton(g);
 	if (lr1 == NULL)
 	{
 		return NULL;
 	}
 
+	// Next, we identify which states can be merged
+	// This creates a mapping where `state_group[i]` holds the group ID for state `i`
 	int *state_group = NULL;
 	int group_count = 0;
 	if (!build_state_group_map(lr1, &state_group, &group_count))
@@ -393,6 +424,8 @@ lalr1_automaton *build_lalr1_automaton(const grammar *g)
 		return NULL;
 	}
 
+	// Create the new, smaller set of LALR(1) states by merging the items
+	// from all LR(1) states that belong to the same group
 	for (int group = 0; group < group_count; group++)
 	{
 		init_lr1_state(&lalr->states[group]);
@@ -406,6 +439,7 @@ lalr1_automaton *build_lalr1_automaton(const grammar *g)
 	}
 	lalr->num_states = group_count;
 
+	// Finally, remap all the original transitions to point to the new, merged states
 	for (int i = 0; i < lr1->num_transitions; i++)
 	{
 		lr1_transition t = lr1->transitions[i];
@@ -421,6 +455,7 @@ lalr1_automaton *build_lalr1_automaton(const grammar *g)
 		}
 	}
 
+	// The original LR(1) automaton is no longer needed
 	free(state_group);
 	free_lr1_automaton(lr1);
 	return lalr;

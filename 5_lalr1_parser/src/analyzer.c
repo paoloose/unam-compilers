@@ -90,12 +90,15 @@ static bool compute_first_tables(const grammar *g, bool **first_table, bool **nu
 
 	*epsilon_id = find_terminal_id(g, "epsilon");
 
-	// Fixed-point iteration until no FIRST/nullable entry changes.
+	// This is a fixed-point iteration algorithm
+	// It repeatedly scans all grammar rules and propagates FIRST set information
+	// The loop terminates when a full pass over all productions results in no new terminals being added to any FIRST set
 	bool changed = true;
 	while (changed)
 	{
 		changed = false;
 
+		// For each production A -> B C D ...
 		for (int p = 0; p < g->num_productions; p++)
 		{
 			production prod = g->productions[p];
@@ -107,6 +110,7 @@ static bool compute_first_tables(const grammar *g, bool **first_table, bool **nu
 				continue;
 			}
 
+			// A production with an empty RHS means A is nullable
 			if (prod.production_length == 0)
 			{
 				if (!(*nullable)[A])
@@ -117,10 +121,13 @@ static bool compute_first_tables(const grammar *g, bool **first_table, bool **nu
 				continue;
 			}
 
+			// Iterate through symbols on the right-hand side
 			for (int i = 0; i < prod.production_length; i++)
 			{
 				int encoded = prod.production_symbol_ids[i];
 
+				// Case 1: The symbol is a terminal
+				// We add it to FIRST(A) and stop processing this rule
 				if (encoded < g->num_terminals)
 				{
 					int t = encoded;
@@ -146,6 +153,8 @@ static bool compute_first_tables(const grammar *g, bool **first_table, bool **nu
 					break;
 				}
 
+				// Case 2: The symbol is a non-terminal B
+				// We merge everything in FIRST(B) into FIRST(A)
 				for (int t = 0; t < t_count; t++)
 				{
 					if (t == *epsilon_id)
@@ -160,6 +169,8 @@ static bool compute_first_tables(const grammar *g, bool **first_table, bool **nu
 					}
 				}
 
+				// If B cannot derive epsilon, then the rest of the rule after B
+				// can never be reached, so we stop
 				if (!(*nullable)[B])
 				{
 					derives_epsilon = false;
@@ -167,6 +178,8 @@ static bool compute_first_tables(const grammar *g, bool **first_table, bool **nu
 				}
 			}
 
+			// If we processed the entire RHS and all symbols were nullable,
+			// then A itself is nullable
 			if (derives_epsilon && !(*nullable)[A])
 			{
 				(*nullable)[A] = true;

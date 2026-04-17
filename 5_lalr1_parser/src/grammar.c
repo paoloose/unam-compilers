@@ -152,6 +152,8 @@ static int get_symbol_id_from_hash(const char *symbol_str, const symbol_hash_tab
  * @param grammar_file_content Full grammar text.
  * @return Allocated grammar instance, or NULL on failure.
  */
+// This function is the main entry point for parsing the grammar file
+// It orchestrates the parsing of symbols and productions
 grammar *create_grammar(const char *grammar_file_content)
 {
     if (grammar_file_content == NULL)
@@ -159,14 +161,14 @@ grammar *create_grammar(const char *grammar_file_content)
         return NULL;
     }
 
-    // strtok modifies the input buffer, so parse from a mutable copy.
+    // strtok modifies the input buffer, so we must parse from a mutable copy
     char *grammar_copy = strdup(grammar_file_content);
     if (grammar_copy == NULL)
     {
         return NULL;
     }
 
-    // Split the grammar file content into lines
+    // First, split the entire grammar file content into distinct lines
     char *lines[MAX_PRODUCTIONS + 2];
     int num_lines = 0;
     char *line = strtok(grammar_copy, "\n");
@@ -176,7 +178,7 @@ grammar *create_grammar(const char *grammar_file_content)
         line = strtok(NULL, "\n");
     }
 
-    // Create a grammar object
+    // allocate the main grammar object that will hold all parsed data
     grammar *g = (grammar *)calloc(1, sizeof(grammar));
     if (g == NULL)
     {
@@ -190,16 +192,17 @@ grammar *create_grammar(const char *grammar_file_content)
         return g;
     }
 
-    // Get non-terminals
+    // The first line of the file is assumed to declare the non-terminals
     g->non_terminals = get_symbols_from_line(lines[0], &g->num_non_terminals, false);
-    // Get terminals
+
+    // The second line is assumed to declare the terminals
     g->terminals = get_symbols_from_line(lines[1], &g->num_terminals, true);
 
-    // Build hash tables for O(1) average symbol lookup.
+    // To speed up finding symbol IDs by name, we build hash tables
     g->non_terminal_index = create_symbol_hash_table(g->non_terminals, g->num_non_terminals);
     g->terminal_index = create_symbol_hash_table(g->terminals, g->num_terminals);
 
-    // Get productions
+    // All subsequent lines are parsed as production rules
     g->productions = (production *)malloc(MAX_PRODUCTIONS * sizeof(production));
     g->num_productions = 0;
     for (int i = 2; i < num_lines && g->num_productions < MAX_PRODUCTIONS; i++)
@@ -310,10 +313,10 @@ static symbol *get_symbols_from_line(const char *symbols_line, int *symbols_coun
  */
 static production get_production_from_line(const char *production_line, grammar *g)
 {
-    // Copy the production line to avoid modifying the original string
+    // copy the production line to avoid modifying the original string
     char *production_line_duplicate = strdup(production_line);
 
-    // Split the production line into parts
+    // split the production line into tokens
     char *token = strtok((char *)production_line_duplicate, " ");
     if (token == NULL)
     {
@@ -328,12 +331,12 @@ static production get_production_from_line(const char *production_line, grammar 
     char *lhs = trim_token(token);
     int non_terminal_id = get_symbol_id_from_hash(lhs, &g->non_terminal_index);
 
-    // Production symbols are stored as encoded ids:
-    // terminals [0..T-1], non-terminals [T..T+N-1].
+    // encode production symbols as integers
+    // terminals are [0..T-1] and non terminals are [T..T+N-1]
     int *production_symbol_ids = (int *)malloc(MAX_PRODUCTIONS * sizeof(int));
     int production_length = 0;
 
-    // Get the production symbols
+    // parse the right hand side symbols
     token = strtok(NULL, " ");
     while (token != NULL)
     {
@@ -360,20 +363,20 @@ static production get_production_from_line(const char *production_line, grammar 
             symbol_id = get_symbol_id_from_hash(trimmed, &g->non_terminal_index);
             if (symbol_id != -1)
             {
-                // Non-terminals are encoded after terminals.
+                // shift non terminal ids by the total number of terminals
                 production_symbol_ids[production_length++] = g->num_terminals + symbol_id;
             }
         }
         token = strtok(NULL, " ");
     }
 
-    // Create a production object
+    // construct the final production structure
     production p;
     p.non_terminal_id = non_terminal_id;
     p.production_symbol_ids = production_symbol_ids;
     p.production_length = production_length;
 
-    // Free the copied line
+    // free the temporary string copy
     free(production_line_duplicate);
 
     return p;

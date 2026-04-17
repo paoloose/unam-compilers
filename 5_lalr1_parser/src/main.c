@@ -385,15 +385,19 @@ static bool parse_token_stream(const grammar *g, const parser_table *table, Tree
 
         if (action.type == PARSER_ACTION_SHIFT)
         {
+            // The SHIFT action means the current token is valid in this state
+            // We consume the token and advance the automaton to a new state
             if (!push_state(&state_stack, action.value)) {
                 goto parse_error;
             }
 
+            // The consumed token becomes a leaf in our concrete syntax tree
             TreeNode *leaf_node = create_tree_node(lookahead.lexeme);
             if (!push_node(&tree_node_stack, leaf_node)) {
                 goto parse_error;
             }
 
+            // Advance the input stream to the next token
             if (!next_token(g, &lookahead))
             {
                 fprintf(stderr, "Lexer token could not be mapped to grammar terminal: '%s' (token=%d)\n",
@@ -407,19 +411,17 @@ static bool parse_token_stream(const grammar *g, const parser_table *table, Tree
 
         if (action.type == PARSER_ACTION_REDUCE)
         {
-            if (action.value < 0 || action.value >= g->num_productions)
-            {
-                fprintf(stderr, "Invalid reduction production index: %d\n", action.value);
-                goto parse_error;
-            }
-
+            // The REDUCE action means the top of our stack matches the RHS of a grammar rule
+            // We will "reduce" these symbols into a single non-terminal
             production p = g->productions[action.value];
             int pop_count = reduction_pop_count(g, p);
 
+            // Pop states and tree nodes corresponding to the rule's symbols
             if (!pop_states(&state_stack, pop_count)) {
                 return false;
             }
 
+            // Create a new parent node for the non-terminal we are reducing to
             TreeNode *parent_node = create_tree_node(g->non_terminals[p.non_terminal_id].symbol);
             parent_node->num_children = pop_count;
             if (pop_count > 0)
@@ -440,6 +442,9 @@ static bool parse_token_stream(const grammar *g, const parser_table *table, Tree
                 goto parse_error;
             }
 
+            // After reducing, the state at the top of the stack is now exposed
+            // We consult the GOTO table to see which state to transition to
+            // based on the non-terminal we just created
             int goto_from = top_state(&state_stack);
             int goto_state = get_parser_goto(table, goto_from, p.non_terminal_id);
             if (!push_state(&state_stack, goto_state)) {
