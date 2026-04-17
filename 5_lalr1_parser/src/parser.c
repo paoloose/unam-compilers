@@ -67,10 +67,12 @@ parser_table *build_lalr1_parser_table(const grammar *g, const lalr1_automaton *
         }
     }
 
-    // 1) Fill SHIFT and GOTO from automaton transitions.
+    // 1) Fill SHIFT and GOTO from automaton transitions
     for (int i = 0; i < automaton->num_transitions; i++)
     {
         lr1_transition transition = automaton->transitions[i];
+
+        // Terminals always trigger SHIFT actions to a new state
         if (symbol_is_terminal(g, transition.symbol_id))
         {
             if (!set_action_entry(
@@ -85,6 +87,7 @@ parser_table *build_lalr1_parser_table(const grammar *g, const lalr1_automaton *
             continue;
         }
 
+        // Non-terminals define the GOTO jumps after a REDUCE
         int non_terminal_id = transition.symbol_id - g->num_terminals;
         if (!set_goto_entry(table, transition.from_state, non_terminal_id, transition.to_state))
         {
@@ -93,7 +96,7 @@ parser_table *build_lalr1_parser_table(const grammar *g, const lalr1_automaton *
         }
     }
 
-    // 2) Fill REDUCE and ACCEPT from completed items and lookahead symbols.
+    // 2) Fill REDUCE and ACCEPT from completed items and their lookaheads
     for (int state_id = 0; state_id < automaton->num_states; state_id++)
     {
         const lr1_state *state = &automaton->states[state_id];
@@ -103,6 +106,7 @@ parser_table *build_lalr1_parser_table(const grammar *g, const lalr1_automaton *
 
             if (item.production_index < 0)
             {
+                // ACCEPT action only for S' -> S . , $
                 if (item.dot_position == 1 && item.lookahead_id == automaton->eof_lookahead_id)
                 {
                     if (!set_action_entry(table, state_id, automaton->eof_lookahead_id, make_accept_action()))
@@ -120,6 +124,8 @@ parser_table *build_lalr1_parser_table(const grammar *g, const lalr1_automaton *
             }
 
             production p = g->productions[item.production_index];
+
+            // REDUCE actions only when the dot is at the end of the rule
             if (item.dot_position != p.production_length)
             {
                 continue;
@@ -130,6 +136,7 @@ parser_table *build_lalr1_parser_table(const grammar *g, const lalr1_automaton *
                 continue;
             }
 
+            // REDUCE exactly for the lookahead required by the LR(1) item
             if (!set_action_entry(table, state_id, item.lookahead_id, make_reduce_action(item.production_index)))
             {
                 free_parser_table(table);
@@ -571,6 +578,36 @@ bool save_parser_table_json(const parser_table *table, const char *output_path)
         }
         fprintf(file, "]");
         if (state_id < table->num_states - 1)
+        {
+            fprintf(file, ",");
+        }
+        fprintf(file, "\n");
+    }
+    fprintf(file, "  ],\n");
+
+    fprintf(file, "  \"productions\": [\n");
+    for (int prod_id = 0; prod_id < table->g->num_productions; prod_id++)
+    {
+        production p = table->g->productions[prod_id];
+
+        int epsilon_id = -1;
+        for (int i = 0; i < table->g->num_terminals; i++) {
+            if (strcmp(table->g->terminals[i].symbol, "epsilon") == 0) {
+                epsilon_id = i;
+                break;
+            }
+        }
+
+        int rhs_len = 0;
+        for (int i = 0; i < p.production_length; i++) {
+            if (p.production_symbol_ids[i] != epsilon_id) {
+                rhs_len++;
+            }
+        }
+
+        fprintf(file, "    {\"lhs_idx\": %d, \"rhs_len\": %d}", p.non_terminal_id, rhs_len);
+
+        if (prod_id < table->g->num_productions - 1)
         {
             fprintf(file, ",");
         }
