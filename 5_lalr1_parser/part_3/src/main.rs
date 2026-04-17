@@ -82,3 +82,70 @@ fn main() {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+
+    // Helper function to run the parser on a given source file and assert the expected outcome
+    fn run_test(source_path: &str, expected_success: bool) {
+        // Load the parse table from the root directory
+        let table_path = PathBuf::from("../table.json");
+        let table_content = fs::read_to_string(table_path)
+            .expect("Failed to read parse table JSON for tests");
+        let table: Table = serde_json::from_str(&table_content)
+            .expect("Failed to deserialize parse table JSON");
+
+        // Load the input source code
+        let source_full_path = PathBuf::from("..").join(source_path);
+        let source_content = fs::read_to_string(source_full_path)
+            .expect("Failed to read source file for tests");
+
+        // Initialize lexer and parser
+        let lexer = Lexer::new(&source_content);
+        let productions = table.productions.clone();
+        let parser = Parser::new(table, productions);
+
+        // Run parsing and assert the outcome matches the expectation
+        let result = parser.parse(lexer);
+        assert_eq!(
+            result.is_ok(),
+            expected_success,
+            "Test failed for {}, expected success: {}, got: {:?}",
+            source_path,
+            expected_success,
+            result
+        );
+    }
+
+    #[test]
+    fn test_valid_input_01() {
+        run_test("part_1/test_inputs/input_01_accept.txt", true);
+    }
+
+    #[test]
+    fn test_valid_input_02() {
+        run_test("part_1/test_inputs/input_02_accept.txt", true);
+    }
+
+    #[test]
+    fn test_valid_input_03() {
+        run_test("part_1/test_inputs/input_03_accept.txt", true);
+    }
+
+    #[test]
+    fn test_invalid_input_01() {
+        run_test("part_1/test_inputs/input_01_reject.txt", false);
+    }
+
+    #[test]
+    fn test_invalid_input_02() {
+        run_test("part_1/test_inputs/input_02_reject.txt", false);
+    }
+
+    #[test]
+    fn test_invalid_input_03() {
+        run_test("part_1/test_inputs/input_03_reject.txt", false);
+    }
+}
