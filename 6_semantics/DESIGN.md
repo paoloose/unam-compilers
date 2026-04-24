@@ -51,11 +51,11 @@ match (risky_operation()) {
 **Why**: Cleaner code; the last expression is the return value.
 
 ```ennuyeux
-fn add(a, b) {
+fn add(a: Int, b: Int) {
     a + b  // Implicitly returned, no semicolon
 }
 
-fn divide(a, b) {
+fn divide(a: Int, b: Int) {
     if (b == 0) {
         return Err("Division by zero");  // Explicit early return
     }
@@ -114,9 +114,7 @@ The language supports basic type inference:
 **Keywords**:
 
 ```ennuyeux
-let, if, else, match, fn, return, break,
-for, while, enum, print, read_line,
-true, false, Some, None, Ok, Err
+let, if, else, match, fn, return, break, for, enum, true, false
 ```
 
 **Operators**:
@@ -132,7 +130,7 @@ Assignment: =
 **Punctuation**:
 
 ```ennuyeux
-; , ( ) { } [ ] => :: .. : . _
+; , ( ) { } [ ] => .. : . _
 ```
 
 ### Identifiers

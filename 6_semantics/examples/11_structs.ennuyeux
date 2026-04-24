@@ -1,16 +1,20 @@
-// Example: Structs (declaration, instantiation, member access)
 struct Point {
-    x: int,
-    y: int
+    x: int;
+    y: int;
+}
+
+struct NonEmptyList<T> {
+    head: T;
+    tail: List<T>;
 }
 
 struct Rectangle {
-    origin: Point,
-    width: int,
-    height: int
+    origin: Point;
+    width: int;
+    height: int;
 }
 
-fn area(rect) {
+fn area(rect: Rectangle) {
     rect.width * rect.height
 }
 

@@ -1,16 +1,16 @@
 // Example: Functions with Early Return
-fn absolute(x) {
+fn absolute(x: Int) {
     if (x < 0) {
         return -x;
     };
     x
 };
 
-fn max(a, b) {
+fn max(a: Int, b: Int) {
     if (a > b) { a } else { b }
 };
 
-fn min(a, b) {
+fn min(a: Int, b: Int) {
     if (a < b) { a } else { b }
 };
 

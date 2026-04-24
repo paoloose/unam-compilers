@@ -28,6 +28,7 @@ typedef enum {
     NODE_RETURN,
     NODE_BREAK,
     NODE_IDENT_LIST,
+    NODE_PARAMETER,
     NODE_BINARY_OP,
     NODE_UNARY_OP,
     NODE_IDENTIFIER,
@@ -45,8 +46,10 @@ typedef enum {
     NODE_PLACEHOLDER, // '_'
     NODE_MEMBER_ACCESS, // '.'
     NODE_RANGE,
+    NODE_GENERIC_TYPE,
 } NodeType;
 
+// note: I may use a union in the future to save some memory 
 typedef struct ASTNode {
     NodeType type;
     char* lexeme;
@@ -102,15 +105,16 @@ static inline void print_ast(ASTNode* node, int indent) {
     if (!node) return;
     for (int i = 0; i < indent; i++) printf("  ");
     
+    // note: the order depends on the NodeType enum
     const char* type_names[] = {
         "NODE_PROGRAM", "NODE_FUNCTION", "NODE_STMT_LIST", "NODE_LET", "NODE_ASSIGN",
         "NODE_IF", "NODE_FOR", "NODE_LOOP", "NODE_MATCH",
-        "NODE_MATCH_ARM", "NODE_RETURN", "NODE_BREAK", "NODE_IDENT_LIST",
+        "NODE_MATCH_ARM", "NODE_RETURN", "NODE_BREAK", "NODE_IDENT_LIST", "NODE_PARAMETER",
         "NODE_BINARY_OP", "NODE_UNARY_OP", "NODE_IDENTIFIER", "NODE_INT_LITERAL",
         "NODE_FLOAT_LITERAL", "NODE_BOOL_LITERAL", "NODE_STRING_LITERAL", "NODE_CALL",
         "NODE_ENUM_DECL", "NODE_ENUM_VARIANT", "NODE_STRUCT_DECL", "NODE_STRUCT_FIELD",
         "NODE_LIST_LITERAL", "NODE_PIPELINE", "NODE_PLACEHOLDER", "NODE_MEMBER_ACCESS",
-        "NODE_RANGE"
+        "NODE_RANGE", "NODE_GENERIC_TYPE"
     };
 
     printf("[%s]", type_names[node->type]);

@@ -1,14 +1,13 @@
-// Example: Lists and List Pattern Matching
-fn head(list) {
+fn head(list: List<T>) {
     match (list) {
-        [first, ...rest] => Some(first);
+        [first, ..rest] => Some(first);
         _ => None;
     }
 };
 
-fn sum_list(list) {
+fn sum_list(list: List<T>) {
     match (list) {
-        [x, ...rest] => x + sum_list(rest);
+        [x, ..rest] => x + sum_list(rest);
         _ => 0;
     }
 };
@@ -21,8 +20,8 @@ fn main() {
 
     // Pattern matching on lists
     match (numbers) {
-        [1, ...rest] => print("Starts with 1");
-        [4, ...rest] => print("Starts with 4");
+        [1, ..rest] => print("Starts with 1");
+        [4, ..rest] => print("Starts with 4");
         _ => print("Other");
     };
 

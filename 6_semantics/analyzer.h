@@ -6,12 +6,12 @@
 // Symbol table entry
 typedef struct Symbol {
     char* name;
-    ASTNode* type_node; // Type information
+    ASTNode* type_node; // type information
     int is_function;
     struct Symbol* next;
 } Symbol;
 
-// Scope structure
+// Scope that we can push and pop from
 typedef struct Scope {
     Symbol* symbols;
     struct Scope* parent;

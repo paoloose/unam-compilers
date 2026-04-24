@@ -35,8 +35,8 @@ ASTNode* root;
 %token POW EQ NEQ LE GE AND OR SHL SHR PIPE ARROW DOTDOT COLONCOLON
 
 %type <node_val> program definition_list definition function_def enum_def struct_def
-%type <node_val> block_body stmt_seq stmt expr match_arms match_arm pattern ident_list
-%type <node_val> expr_list call_args struct_fields struct_field enum_variants enum_variant
+%type <node_val> block_body stmt_seq stmt expr match_arms match_arm pattern ident_list type_expr type_params_list
+%type <node_val> expr_list call_args func_param struct_fields struct_field enum_variants enum_variant
 %type <node_val> list_literal range_expr control_expr struct_literal struct_literal_fields struct_literal_field
 
 %right '='
@@ -90,6 +90,14 @@ function_def:
         $$->args = $4;
         $$->body = $7;
     }
+    | FN IDENT '<' ident_list '>' '(' call_args ')' '{' block_body '}' {
+        $$ = create_node(NODE_FUNCTION);
+        $$->lexeme = ast_strdup($2);
+        // We can store generic params in a dedicated field or just prepend to args
+        $$->args = $7;
+        $$->left = $4; // Store generic list in 'left' for now
+        $$->body = $10;
+    }
     ;
 
 enum_def:
@@ -97,6 +105,12 @@ enum_def:
         $$ = create_node(NODE_ENUM_DECL);
         $$->lexeme = ast_strdup($2);
         $$->args = $4;
+    }
+    | ENUM IDENT '<' ident_list '>' '{' enum_variants '}' {
+        $$ = create_node(NODE_ENUM_DECL);
+        $$->lexeme = ast_strdup($2);
+        $$->left = $4; // Generic params
+        $$->args = $7;
     }
     ;
 
@@ -113,9 +127,10 @@ enum_variants:
 ident_list:
     IDENT { $$ = create_leaf_id($1); }
     | ident_list ',' IDENT {
-        $$ = create_node(NODE_IDENT_LIST);
-        $$->left = $1;
-        $$->right = create_leaf_id($3);
+        ASTNode* n = $1;
+        while(n->next) n = n->next;
+        n->next = create_leaf_id($3);
+        $$ = $1;
     }
     ;
 
@@ -137,28 +152,29 @@ struct_def:
         $$->lexeme = ast_strdup($2);
         $$->args = $4;
     }
-    | STRUCT IDENT '{' struct_fields '}' ';' {
+    | STRUCT IDENT '<' ident_list '>' '{' struct_fields '}' {
         $$ = create_node(NODE_STRUCT_DECL);
         $$->lexeme = ast_strdup($2);
-        $$->args = $4;
+        $$->left = $4; // Generic params
+        $$->args = $7;
     }
     ;
 
 struct_fields:
     struct_field { $$ = $1; }
-    | struct_fields ',' struct_field {
+    | struct_fields struct_field {
         ASTNode* n = $1;
         while(n->next) n = n->next;
-        n->next = $3;
+        n->next = $2;
         $$ = $1;
     }
     ;
 
 struct_field:
-    IDENT ':' IDENT {
+    IDENT ':' type_expr ';' {
         $$ = create_node(NODE_STRUCT_FIELD);
         $$->lexeme = ast_strdup($1);
-        $$->left = create_leaf_id($3);
+        $$->left = $3;
     }
     ;
 
@@ -190,6 +206,12 @@ stmt:
         $$ = create_node(NODE_LET);
         $$->lexeme = ast_strdup($2);
         $$->right = $4;
+    }
+    | LET IDENT ':' type_expr '=' expr ';' {
+        $$ = create_node(NODE_LET);
+        $$->lexeme = ast_strdup($2);
+        $$->left = $4;
+        $$->right = $6;
     }
     | RETURN expr ';' {
         $$ = create_node(NODE_RETURN);
@@ -401,11 +423,38 @@ expr_list:
 
 call_args:
     /* empty */ { $$ = NULL; }
-    | IDENT { $$ = create_leaf_id($1); }
-    | call_args ',' IDENT {
+    | func_param { $$ = $1; }
+    | call_args ',' func_param {
         ASTNode* n = $1;
         while(n->next) n = n->next;
-        n->next = create_leaf_id($3);
+        n->next = $3;
+        $$ = $1;
+    }
+    ;
+
+func_param:
+    IDENT ':' type_expr {
+        $$ = create_node(NODE_PARAMETER);
+        $$->lexeme = ast_strdup($1);
+        $$->left = $3;
+    }
+    ;
+
+type_expr:
+    IDENT { $$ = create_leaf_id($1); }
+    | IDENT '<' type_params_list '>' {
+        $$ = create_node(NODE_GENERIC_TYPE);
+        $$->lexeme = ast_strdup($1);
+        $$->args = $3;
+    }
+    ;
+
+type_params_list:
+    type_expr { $$ = $1; }
+    | type_params_list ',' type_expr {
+        ASTNode* n = $1;
+        while(n->next) n = n->next;
+        n->next = $3;
         $$ = $1;
     }
     ;
@@ -492,13 +541,16 @@ int main(int argc, char** argv) {
         extern FILE* yyin;
         yyin = f;
     }
+
     if (yyparse() == 0) {
         printf("Parsing successful!\nAST Structure:\n");
         print_ast(root, 0);
         analyze_semantics(root);
-    } else {
+    }
+    else {
         printf("Parsing failed.\n");
         return 1;
     }
+
     return 0;
 }
