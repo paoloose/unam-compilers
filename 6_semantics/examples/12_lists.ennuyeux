@@ -3,14 +3,14 @@ fn head(list: List<T>) {
         [first, ..rest] => Some(first);
         _ => None;
     }
-};
+}
 
 fn sum_list(list: List<T>) {
     match (list) {
         [x, ..rest] => x + sum_list(rest);
         _ => 0;
     }
-};
+}
 
 fn main() {
     let numbers = [1, 2, 3, 4, 5];

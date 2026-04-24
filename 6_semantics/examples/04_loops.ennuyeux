@@ -5,9 +5,10 @@ fn main() {
         print("i = " + i);
     };
 
-    // While loop
+    // Replacement for while loop
     let count = 0;
-    while (count < 3) {
+    loop {
+        if (count >= 3) { break; };
         print("count = " + count);
         count = count + 1;
     };
@@ -22,5 +23,6 @@ fn main() {
             }
         }
     };
+    
     print("Sum of 1..10 = " + sum);
 }

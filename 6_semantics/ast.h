@@ -47,6 +47,7 @@ typedef enum {
     NODE_MEMBER_ACCESS, // '.'
     NODE_RANGE,
     NODE_GENERIC_TYPE,
+    NODE_LAMBDA,
 } NodeType;
 
 // note: I may use a union in the future to save some memory 
@@ -114,7 +115,7 @@ static inline void print_ast(ASTNode* node, int indent) {
         "NODE_FLOAT_LITERAL", "NODE_BOOL_LITERAL", "NODE_STRING_LITERAL", "NODE_CALL",
         "NODE_ENUM_DECL", "NODE_ENUM_VARIANT", "NODE_STRUCT_DECL", "NODE_STRUCT_FIELD",
         "NODE_LIST_LITERAL", "NODE_PIPELINE", "NODE_PLACEHOLDER", "NODE_MEMBER_ACCESS",
-        "NODE_RANGE", "NODE_GENERIC_TYPE"
+        "NODE_RANGE", "NODE_GENERIC_TYPE", "NODE_LAMBDA"
     };
 
     printf("[%s]", type_names[node->type]);
@@ -131,15 +132,15 @@ static inline void print_ast(ASTNode* node, int indent) {
         printf("(cond)\n");
         print_ast(node->cond, indent + 2);
     }
-    if (node->body) {
-        for (int i = 0; i <= indent; i++) printf("  ");
-        printf("(body)\n");
-        print_ast(node->body, indent + 2);
-    }
     if (node->args) {
         for (int i = 0; i <= indent; i++) printf("  ");
         printf("(args)\n");
         print_ast(node->args, indent + 2);
+    }
+    if (node->body) {
+        for (int i = 0; i <= indent; i++) printf("  ");
+        printf("(body)\n");
+        print_ast(node->body, indent + 2);
     }
     if (node->else_branch) {
         for (int i = 0; i <= indent; i++) printf("  ");

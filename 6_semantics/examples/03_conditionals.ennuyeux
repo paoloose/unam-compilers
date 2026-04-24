@@ -5,9 +5,11 @@ fn main() {
     // if-else chain
     if (age < 13) {
         print("You are a child");
-    } else if (age < 20) {
+    }
+    else if (age < 20) {
         print("You are a teenager");
-    } else {
+    }
+    else {
         print("You are an adult");
     };
 

@@ -55,6 +55,13 @@ int yycolumn = 1;
 "=>"               { return ARROW; }
 ".."               { return DOTDOT; }
 "::"               { return COLONCOLON; }
+"++"               { return INC; }
+"--"               { return DEC; }
+"+="               { return ADD_ASSIGN; }
+"-="               { return SUB_ASSIGN; }
+"*="               { return MUL_ASSIGN; }
+"/="               { return DIV_ASSIGN; }
+"%="               { return MOD_ASSIGN; }
 
 "+"                { return '+'; }
 "-"                { return '-'; }

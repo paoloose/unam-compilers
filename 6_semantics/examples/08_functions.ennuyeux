@@ -4,15 +4,19 @@ fn absolute(x: Int) {
         return -x;
     };
     x
-};
+}
+
+fn twice<T>(x: Fn<T, T>) {
+    x(x(x))
+}
 
 fn max(a: Int, b: Int) {
     if (a > b) { a } else { b }
-};
+}
 
 fn min(a: Int, b: Int) {
     if (a < b) { a } else { b }
-};
+}
 
 fn main() {
     print("absolute(42)  = " + absolute(42));

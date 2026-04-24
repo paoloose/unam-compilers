@@ -74,7 +74,28 @@ void analyze_node(ASTNode* node) {
                     get_type_name(arg->left, type_buf, sizeof(type_buf));
                     printf("  Parameter: %s : %s\n", arg->lexeme, type_buf);
                     add_symbol(arg->lexeme, arg->left, 0);
-                } else {
+                }
+                else {
+                    add_symbol(arg->lexeme, NULL, 0);
+                }
+                arg = arg->next;
+            }
+            analyze_node(node->body);
+            pop_scope();
+            break;
+        }
+        case NODE_LAMBDA: {
+            push_scope();
+            printf("Lambda expression:\n");
+            ASTNode* arg = node->args;
+            while (arg) {
+                if (arg->type == NODE_PARAMETER) {
+                    char type_buf[128];
+                    get_type_name(arg->left, type_buf, sizeof(type_buf));
+                    printf("  Parameter: %s : %s\n", arg->lexeme, type_buf);
+                    add_symbol(arg->lexeme, arg->left, 0);
+                }
+                else {
                     add_symbol(arg->lexeme, NULL, 0);
                 }
                 arg = arg->next;
@@ -90,7 +111,8 @@ void analyze_node(ASTNode* node) {
                 get_type_name(node->left, type_buf, sizeof(type_buf));
                 printf("Defining variable: %s : %s\n", node->lexeme, type_buf);
                 add_symbol(node->lexeme, node->left, 0);
-            } else {
+            }
+            else {
                 printf("Defining variable: %s (inferred)\n", node->lexeme);
                 add_symbol(node->lexeme, NULL, 0);
             }
@@ -98,9 +120,11 @@ void analyze_node(ASTNode* node) {
         }
         case NODE_ASSIGN: {
             analyze_node(node->right);
-            printf("Assigning variable: %s\n", node->lexeme);
-            if (!find_symbol(node->lexeme)) {
-                fprintf(stderr, "Error: Semantic error at line %d: Undefined variable '%s'\n", 0, node->lexeme);
+            if (node->left && node->left->lexeme) {
+                printf("Assigning variable: %s (via %s)\n", node->left->lexeme, node->lexeme);
+                if (!find_symbol(node->left->lexeme)) {
+                    fprintf(stderr, "Error: Semantic error at line %d: Undefined variable '%s'\n", 0, node->left->lexeme);
+                }
             }
             break;
         }

@@ -8,5 +8,28 @@ fn main() {
     // Inclusive range
     for i in 1..=10 {
         print("i = " + i);
+    };
+
+    // And they also evaluate to a value
+    let nums = [1, 2, 3, 4, 5];
+    let three_exists = for x in nums {
+        if x == 3 {
+            break true;
+        }
     }
+    else {
+        break false;
+    };
+    print("Three exists: " + three_exists);
+
+    let found_at = for i in 0..5 {
+        if nums[i] == 3 {
+            break i;
+        }
+    }
+    else {
+        break -1;
+    };
+
+    print("Found at index: " + found_at);
 }

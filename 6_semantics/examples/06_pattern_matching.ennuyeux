@@ -1,5 +1,5 @@
 // Example: Pattern Matching with Guards
-fn classify_value(x) {
+fn classify_value(x: Int) {
     match (x) {
         0 => "Zero";
         1 => "One";
@@ -8,7 +8,7 @@ fn classify_value(x) {
         n if n < 100 => "Double digit";
         _ => "Large number";
     }
-};
+}
 
 fn main() {
     print(classify_value(0));

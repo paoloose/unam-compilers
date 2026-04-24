@@ -1,12 +1,12 @@
 // Example: Error Handling with Result and Option
-fn safe_divide(a, b) {
+fn safe_divide(a: Int, b: Int) {
     if (b == 0) {
         return Err("Division by zero");
     };
     Ok(a / b)
-};
+}
 
-fn find_index(list, target) {
+fn find_index(list: List<Int>, target: Int) {
     // Returns Some(index) or None
     for (let i = 0; i < 5; i = i + 1) {
         if (list[i] == target) {
@@ -14,7 +14,7 @@ fn find_index(list, target) {
         };
     };
     None
-};
+}
 
 fn main() {
     // Result usage

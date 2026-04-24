@@ -14,8 +14,9 @@ ASTNode* root;
 %}
 
 %locations
+%glr-parser
 %define parse.error detailed
-%expect 1
+
 
 // To carry semantic values from the lexer to the parser
 %union {
@@ -33,13 +34,14 @@ ASTNode* root;
 %token LET IF ELSE MATCH FN RETURN BREAK FOR LOOP ENUM STRUCT
 %token IN
 %token POW EQ NEQ LE GE AND OR SHL SHR PIPE ARROW DOTDOT COLONCOLON
+%token INC DEC ADD_ASSIGN SUB_ASSIGN MUL_ASSIGN DIV_ASSIGN MOD_ASSIGN
 
 %type <node_val> program definition_list definition function_def enum_def struct_def
 %type <node_val> block_body stmt_seq stmt expr match_arms match_arm pattern ident_list type_expr type_params_list
-%type <node_val> expr_list call_args func_param struct_fields struct_field enum_variants enum_variant
-%type <node_val> list_literal range_expr control_expr struct_literal struct_literal_fields struct_literal_field
+%type <node_val> expr_list call_args func_param lambda_args struct_fields struct_field enum_variants enum_variant
+%type <node_val> list_literal control_expr struct_literal struct_literal_fields struct_literal_field
 
-%right '='
+%right '=' ADD_ASSIGN SUB_ASSIGN MUL_ASSIGN DIV_ASSIGN MOD_ASSIGN
 %left OR
 %left AND
 %left '|'
@@ -52,8 +54,9 @@ ASTNode* root;
 %left '*' '/' '%'
 %left PIPE
 %right POW
+%left DOTDOT
 %right '!' '~'
-%left '.' COLONCOLON '(' '[' '{'
+%left '.' COLONCOLON '(' '[' '{' INC DEC
 
 %nonassoc LOWER_THAN_ELSE
 %nonassoc ELSE
@@ -238,8 +241,49 @@ expr:
     | '_' { $$ = create_node(NODE_PLACEHOLDER); }
     | IDENT '=' expr {
         $$ = create_node(NODE_ASSIGN);
-        $$->lexeme = ast_strdup($1);
+        $$->lexeme = ast_strdup("=");
+        $$->left = create_leaf_id($1);
         $$->right = $3;
+    }
+    | IDENT ADD_ASSIGN expr {
+        $$ = create_node(NODE_ASSIGN);
+        $$->lexeme = ast_strdup("+=");
+        $$->left = create_leaf_id($1);
+        $$->right = $3;
+    }
+    | IDENT SUB_ASSIGN expr {
+        $$ = create_node(NODE_ASSIGN);
+        $$->lexeme = ast_strdup("-=");
+        $$->left = create_leaf_id($1);
+        $$->right = $3;
+    }
+    | IDENT MUL_ASSIGN expr {
+        $$ = create_node(NODE_ASSIGN);
+        $$->lexeme = ast_strdup("*=");
+        $$->left = create_leaf_id($1);
+        $$->right = $3;
+    }
+    | IDENT DIV_ASSIGN expr {
+        $$ = create_node(NODE_ASSIGN);
+        $$->lexeme = ast_strdup("/=");
+        $$->left = create_leaf_id($1);
+        $$->right = $3;
+    }
+    | IDENT MOD_ASSIGN expr {
+        $$ = create_node(NODE_ASSIGN);
+        $$->lexeme = ast_strdup("%=");
+        $$->left = create_leaf_id($1);
+        $$->right = $3;
+    }
+    | expr INC {
+        $$ = create_node(NODE_UNARY_OP);
+        $$->lexeme = ast_strdup("++");
+        $$->right = $1;
+    }
+    | expr DEC {
+        $$ = create_node(NODE_UNARY_OP);
+        $$->lexeme = ast_strdup("--");
+        $$->right = $1;
     }
     | expr '+' expr { $$ = create_node(NODE_BINARY_OP); $$->lexeme = ast_strdup("+"); $$->left = $1; $$->right = $3; }
     | expr '-' expr { $$ = create_node(NODE_BINARY_OP); $$->lexeme = ast_strdup("-"); $$->left = $1; $$->right = $3; }
@@ -277,7 +321,8 @@ expr:
         $$ = create_node(NODE_CALL);
         if ($1->type == NODE_IDENTIFIER) {
             $$->lexeme = ast_strdup($1->lexeme);
-        } else {
+        }
+        else {
             $$->lexeme = ast_strdup("<dynamic>");
             $$->left = $1;
         }
@@ -298,12 +343,30 @@ expr:
     | control_expr { $$ = $1; }
     | list_literal { $$ = $1; }
     | struct_literal { $$ = $1; }
+    | expr DOTDOT expr {
+        $$ = create_node(NODE_RANGE);
+        $$->left = $1;
+        $$->right = $3;
+    }
+    | expr DOTDOT '=' expr {
+        $$ = create_node(NODE_RANGE);
+        $$->lexeme = ast_strdup("inclusive");
+        $$->left = $1;
+        $$->right = $4;
+    }
     | expr '[' expr_list ']' {
         $$ = create_node(NODE_BINARY_OP);
         $$->lexeme = ast_strdup("[]");
         $$->left = $1;
         $$->right = $3;
     }
+    | FN '(' lambda_args ')' '{' block_body '}' {
+        $$ = create_node(NODE_LAMBDA);
+        $$->args = $3;
+        $$->body = $6;
+    }
+    ;
+    ;
     /* Some/None/Ok/Err are regular identifiers, not keywords.
        They are parsed via the generic IDENT '(' expr_list ')' rule. */
     ;
@@ -335,28 +398,30 @@ struct_literal_field:
     }
     ;
 
+
+
 control_expr:
-    IF '(' expr ')' '{' block_body '}' %prec LOWER_THAN_ELSE {
+    IF expr '{' block_body '}' %prec LOWER_THAN_ELSE {
         $$ = create_node(NODE_IF);
-        $$->cond = $3;
-        $$->body = $6;
+        $$->cond = $2;
+        $$->body = $4;
     }
-    | IF '(' expr ')' '{' block_body '}' ELSE '{' block_body '}' {
+    | IF expr '{' block_body '}' ELSE '{' block_body '}' {
         $$ = create_node(NODE_IF);
-        $$->cond = $3;
-        $$->body = $6;
-        $$->else_branch = $10;
+        $$->cond = $2;
+        $$->body = $4;
+        $$->else_branch = $8;
     }
-    | IF '(' expr ')' '{' block_body '}' ELSE control_expr {
+    | IF expr '{' block_body '}' ELSE control_expr {
         $$ = create_node(NODE_IF);
-        $$->cond = $3;
-        $$->body = $6;
-        $$->else_branch = $9;
+        $$->cond = $2;
+        $$->body = $4;
+        $$->else_branch = $7;
     }
-    | MATCH '(' expr ')' '{' match_arms '}' {
+    | MATCH expr '{' match_arms '}' {
         $$ = create_node(NODE_MATCH);
-        $$->cond = $3;
-        $$->body = $6;
+        $$->cond = $2;
+        $$->body = $4;
     }
     | FOR '(' IDENT '=' expr ';' expr ';' expr ')' '{' block_body '}' {
         $$ = create_node(NODE_FOR);
@@ -366,6 +431,15 @@ control_expr:
         $$->right = $9;
         $$->body = $12;
     }
+    | FOR '(' IDENT '=' expr ';' expr ';' expr ')' '{' block_body '}' ELSE '{' block_body '}' {
+        $$ = create_node(NODE_FOR);
+        $$->lexeme = ast_strdup($3);
+        $$->left = $5;
+        $$->cond = $7;
+        $$->right = $9;
+        $$->body = $12;
+        $$->else_branch = $16;
+    }
     | FOR '(' LET IDENT '=' expr ';' expr ';' expr ')' '{' block_body '}' {
         $$ = create_node(NODE_FOR);
         $$->lexeme = ast_strdup($4);
@@ -374,31 +448,39 @@ control_expr:
         $$->right = $10; 
         $$->body = $13;
     }
-    | FOR IDENT IN range_expr '{' block_body '}' {
+    | FOR '(' LET IDENT '=' expr ';' expr ';' expr ')' '{' block_body '}' ELSE '{' block_body '}' {
+        $$ = create_node(NODE_FOR);
+        $$->lexeme = ast_strdup($4);
+        $$->left = $6; 
+        $$->cond = $8; 
+        $$->right = $10; 
+        $$->body = $13;
+        $$->else_branch = $17;
+    }
+    | FOR IDENT IN expr '{' block_body '}' {
         $$ = create_node(NODE_FOR);
         $$->lexeme = ast_strdup($2);
         $$->cond = $4; 
         $$->body = $6;
     }
+    | FOR IDENT IN expr '{' block_body '}' ELSE '{' block_body '}' {
+        $$ = create_node(NODE_FOR);
+        $$->lexeme = ast_strdup($2);
+        $$->cond = $4; 
+        $$->body = $6;
+        $$->else_branch = $10;
+    }
     | LOOP '{' block_body '}' {
         $$ = create_node(NODE_LOOP);
         $$->body = $3;
     }
+    | LOOP '{' block_body '}' ELSE '{' block_body '}' {
+        $$ = create_node(NODE_LOOP);
+        $$->body = $3;
+        $$->else_branch = $7;
+    }
     ;
 
-range_expr:
-    expr DOTDOT expr {
-        $$ = create_node(NODE_RANGE);
-        $$->left = $1;
-        $$->right = $3;
-    }
-    | expr DOTDOT '=' expr {
-        $$ = create_node(NODE_RANGE);
-        $$->lexeme = ast_strdup("inclusive");
-        $$->left = $1;
-        $$->right = $4;
-    }
-    ;
 
 list_literal:
     '[' expr_list ']' {
@@ -437,6 +519,17 @@ func_param:
         $$ = create_node(NODE_PARAMETER);
         $$->lexeme = ast_strdup($1);
         $$->left = $3;
+    }
+    ;
+
+lambda_args:
+    /* empty */ { $$ = NULL; }
+    | func_param { $$ = $1; }
+    | lambda_args ',' func_param {
+        ASTNode* n = $1;
+        while(n->next) n = n->next;
+        n->next = $3;
+        $$ = $1;
     }
     ;
 
@@ -485,7 +578,6 @@ match_arm:
 
 pattern:
     expr { $$ = $1; }
-    | range_expr { $$ = $1; }
     /* '[' expr_list ']' removed, already covered by expr list_literal */
     | '[' expr_list ',' DOTDOT IDENT ']' {
         $$ = create_node(NODE_LIST_LITERAL);
@@ -495,7 +587,8 @@ pattern:
             n->next = create_node(NODE_PLACEHOLDER);
             n->next->lexeme = ast_strdup($5);
             $$->args = $2;
-        } else {
+        }
+        else {
             $$->args = create_node(NODE_PLACEHOLDER);
             $$->args->lexeme = ast_strdup($5);
         }
@@ -519,15 +612,17 @@ void yyerror(const char *s) {
             const char *got_end = expecting - 2; // skip ", "
             int got_len = (int)(got_end - got_start);
             const char *exp_start = expecting + 10; // skip "expecting "
-            fprintf(stderr, "Syntax error: expected %s but got %.*s at line %d.\n",
-                    exp_start, got_len, got_start, yylloc.first_line);
-        } else {
-            // No expecting clause — too many valid tokens
-            fprintf(stderr, "Syntax error: expected <expression> but got %s at line %d.\n",
-                    got_start, yylloc.first_line);
+            fprintf(stderr, "Syntax error: expected %s but got %.*s at %d:%d.\n",
+                    exp_start, got_len, got_start, yylloc.first_line, yylloc.first_column);
         }
-    } else {
-        fprintf(stderr, "Syntax error: %s at line %d.\n", s, yylloc.first_line);
+        else {
+            // No expecting clause — too many valid tokens
+            fprintf(stderr, "Syntax error: expected <expression> but got %s at %d:%d.\n",
+                    got_start, yylloc.first_line, yylloc.first_column);
+        }
+    }
+    else {
+        fprintf(stderr, "Syntax error: %s at %d:%d.\n", s, yylloc.first_line, yylloc.first_column);
     }
 }
 

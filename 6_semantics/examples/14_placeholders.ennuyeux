@@ -1,7 +1,7 @@
 // Example: Gleam-style Placeholders (_) for Partial Application
-fn add(a, b) { a + b };
-fn multiply(a, b) { a * b };
-fn clamp(lo, val, hi) {
+fn add(a: Int, b: Int) { a + b };
+fn multiply(a: Int, b: Int) { a * b };
+fn clamp(lo: Int, val: Int, hi: Int) {
     if (val < lo) { lo }
     else if (val > hi) { hi }
     else { val }
