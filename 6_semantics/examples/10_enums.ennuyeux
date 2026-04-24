@@ -1,0 +1,23 @@
+// Example: Enum Declarations
+enum Color {
+    Red;
+    Green;
+    Blue;
+}
+
+enum Message {
+    Text(String);
+    Number(Int);
+    Pair(Int, Int);
+}
+
+fn main() {
+    let color = Color.Red;
+    print("Color: Red");
+
+    let msg1 = Message::Text("Hello");
+    let msg2 = Message::Number(42);
+    let msg3 = Message::Pair(10, 20);
+
+    print("Created message enum variants");
+}

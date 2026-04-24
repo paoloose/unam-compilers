@@ -1,0 +1,20 @@
+// Example: Pattern Matching with Guards
+fn classify_value(x) {
+    match (x) {
+        0 => "Zero";
+        1 => "One";
+        n if n < 0 => "Negative";
+        n if n < 10 => "Single digit";
+        n if n < 100 => "Double digit";
+        _ => "Large number";
+    }
+};
+
+fn main() {
+    print(classify_value(0));
+    print(classify_value(1));
+    print(classify_value(-5));
+    print(classify_value(7));
+    print(classify_value(42));
+    print(classify_value(1000));
+}

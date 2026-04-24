@@ -1,0 +1,43 @@
+// Example: Lists and List Pattern Matching
+fn head(list) {
+    match (list) {
+        [first, ...rest] => Some(first);
+        _ => None;
+    }
+};
+
+fn sum_list(list) {
+    match (list) {
+        [x, ...rest] => x + sum_list(rest);
+        _ => 0;
+    }
+};
+
+fn main() {
+    let numbers = [1, 2, 3, 4, 5];
+
+    // List indexing
+    print("First element: " + numbers[0]);
+
+    // Pattern matching on lists
+    match (numbers) {
+        [1, ...rest] => print("Starts with 1");
+        [4, ...rest] => print("Starts with 4");
+        _ => print("Other");
+    };
+
+    // head function
+    match (head(numbers)) {
+        Some(x) => print("Head: " + x);
+        None => print("Empty list");
+    };
+
+    // Empty list
+    let empty = [];
+    match (head(empty)) {
+        Some(x) => print("Head: " + x);
+        None => print("Empty list");
+    };
+
+    print("Sum: " + sum_list(numbers));
+}

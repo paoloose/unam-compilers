@@ -1,0 +1,17 @@
+// Example: Conditionals (if / else if / else)
+fn main() {
+    let age = 25;
+
+    // if-else chain
+    if (age < 13) {
+        print("You are a child");
+    } else if (age < 20) {
+        print("You are a teenager");
+    } else {
+        print("You are an adult");
+    };
+
+    // if as expression
+    let category = if (age >= 18) { "Adult" } else { "Minor" };
+    print("Category: " + category);
+}

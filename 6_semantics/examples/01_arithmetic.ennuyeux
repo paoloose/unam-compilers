@@ -1,0 +1,16 @@
+// Example: Basic Arithmetic and Variables
+fn main() {
+    let a = 10;
+    let b = 3;
+
+    print("a + b = " + (a + b));
+    print("a - b = " + (a - b));
+    print("a * b = " + (a * b));
+    print("a / b = " + (a / b));
+    print("a % b = " + (a % b));
+    print("a ** b = " + (a ** b));
+
+    // Unary negation
+    let neg = -a;
+    print("neg = " + neg);
+}

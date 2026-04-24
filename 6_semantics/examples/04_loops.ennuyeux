@@ -1,0 +1,26 @@
+// Example: Loops (for, while, loop + break)
+fn main() {
+    // C-style for
+    for (let i = 0; i < 5; i = i + 1) {
+        print("i = " + i);
+    };
+
+    // While loop
+    let count = 0;
+    while (count < 3) {
+        print("count = " + count);
+        count = count + 1;
+    };
+
+    // Loop with break value
+    let sum = loop {
+        let total = 0;
+        for (let i = 1; i <= 100; i = i + 1) {
+            total = total + i;
+            if (i >= 10) {
+                break total;
+            }
+        }
+    };
+    print("Sum of 1..10 = " + sum);
+}

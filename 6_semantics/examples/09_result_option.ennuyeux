@@ -1,0 +1,37 @@
+// Example: Error Handling with Result and Option
+fn safe_divide(a, b) {
+    if (b == 0) {
+        return Err("Division by zero");
+    };
+    Ok(a / b)
+};
+
+fn find_index(list, target) {
+    // Returns Some(index) or None
+    for (let i = 0; i < 5; i = i + 1) {
+        if (list[i] == target) {
+            return Some(i);
+        };
+    };
+    None
+};
+
+fn main() {
+    // Result usage
+    match (safe_divide(10, 2)) {
+        Ok(result) => print("10 / 2 = " + result);
+        Err(msg) => print("Error: " + msg);
+    };
+
+    match (safe_divide(10, 0)) {
+        Ok(result) => print("10 / 0 = " + result);
+        Err(msg) => print("Error: " + msg);
+    };
+
+    // Option usage
+    let idx = find_index([10, 20, 30], 20);
+    match (idx) {
+        Some(i) => print("Found at index " + i);
+        None => print("Not found");
+    };
+}

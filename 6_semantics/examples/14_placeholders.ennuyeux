@@ -1,0 +1,27 @@
+// Example: Gleam-style Placeholders (_) for Partial Application
+fn add(a, b) { a + b };
+fn multiply(a, b) { a * b };
+fn clamp(lo, val, hi) {
+    if (val < lo) { lo }
+    else if (val > hi) { hi }
+    else { val }
+};
+
+fn main() {
+    // Single placeholder -> creates a function of one argument
+    let add_ten = add(_, 10);
+    print("add_ten(5) = " + add_ten(5));
+
+    let triple = multiply(3, _);
+    print("triple(7) = " + triple(7));
+
+    // Multiple placeholders -> creates a function of N arguments
+    let adder = add(_, _);
+    print("adder(3, 4) = " + adder(3, 4));
+
+    // Placeholder in complex expressions
+    let clamp_percent = clamp(0, _, 100);
+    print("clamp_percent(150) = " + clamp_percent(150));
+    print("clamp_percent(-10) = " + clamp_percent(-10));
+    print("clamp_percent(42)  = " + clamp_percent(42));
+}

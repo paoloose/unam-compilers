@@ -1,0 +1,22 @@
+// Example: Gleam-style Pipelines (|>)
+fn double(n) { n * 2 };
+fn add(a, b) { a + b };
+fn square(n) { n * n };
+fn to_string(n) { "" + n };
+
+fn main() {
+    // Simple pipeline: value goes as first argument
+    let result = 5 |> double() |> square() |> to_string();
+    print("5 -> double -> square -> to_string = " + result);
+
+    // Pipeline with placeholder: value goes where _ is
+    let adjusted = 10 |> add(_, 5);
+    print("10 |> add(_, 5) = " + adjusted);
+
+    // Chained with placeholder
+    let complex = 3
+        |> double()
+        |> add(_, 100)
+        |> to_string();
+    print("3 -> double -> add(_, 100) -> to_string = " + complex);
+}

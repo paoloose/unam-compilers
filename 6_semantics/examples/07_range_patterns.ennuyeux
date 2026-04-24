@@ -1,0 +1,18 @@
+// Example: Range Patterns in Match
+fn grade_letter(score) {
+    match (score) {
+        0..50 => "F";
+        51..70 => "C";
+        71..85 => "B";
+        86..100 => "A";
+        n if n > 100 => "Invalid";
+        _ => "Unknown";
+    }
+};
+
+fn main() {
+    print("Score 45: " + grade_letter(45));
+    print("Score 65: " + grade_letter(65));
+    print("Score 75: " + grade_letter(75));
+    print("Score 90: " + grade_letter(90));
+}

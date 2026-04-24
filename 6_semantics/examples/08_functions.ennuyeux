@@ -1,0 +1,22 @@
+// Example: Functions with Early Return
+fn absolute(x) {
+    if (x < 0) {
+        return -x;
+    };
+    x
+};
+
+fn max(a, b) {
+    if (a > b) { a } else { b }
+};
+
+fn min(a, b) {
+    if (a < b) { a } else { b }
+};
+
+fn main() {
+    print("absolute(42)  = " + absolute(42));
+    print("absolute(-42) = " + absolute(-42));
+    print("max(3, 7)     = " + max(3, 7));
+    print("min(3, 7)     = " + min(3, 7));
+}

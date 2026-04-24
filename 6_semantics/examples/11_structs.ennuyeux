@@ -1,0 +1,24 @@
+// Example: Structs (declaration, instantiation, member access)
+struct Point {
+    x: int,
+    y: int
+}
+
+struct Rectangle {
+    origin: Point,
+    width: int,
+    height: int
+}
+
+fn area(rect) {
+    rect.width * rect.height
+}
+
+fn main() {
+    let p = Point { x: 10, y: 20 };
+    print("p.x = " + p.x);
+    print("p.y = " + p.y);
+
+    let r = Rectangle { origin: Point { x: 0, y: 0 }, width: 5, height: 3 };
+    print("area = " + area(r));
+}
