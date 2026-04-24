@@ -63,6 +63,70 @@ fn divide(a: Int, b: Int) {
 }
 ```
 
+### Decision 5: Pipelines for Functional Composition
+
+**Why**: Enables readable left-to-right data transformation, making complex operations more intuitive and chainable.
+
+```ennuyeux
+fn double(n: Int) { n * 2 }
+fn square(n: Int) { n * n }
+fn to_string(n: Int) { "" + n }
+
+// Without pipelines: hard to read, right-to-left
+let result1 = to_string(square(double(5)));
+
+// With pipelines: clear data flow, left-to-right
+let result2 = 5 |> double |> square |> to_string;
+
+// Pipelines with placeholders for partial application
+let adjusted = 10 |> add(_, 5);
+```
+
+**Benefits**: Makes code more readable for data transformations and enables functional composition patterns.
+
+### Decision 6: Anonymous Functions / Lambdas
+
+**Why**: Enables functional programming patterns, higher-order functions, and inline computations without named function overhead.
+
+```ennuyeux
+// Basic lambda assignment
+let duplicate = fn (a: Int) { a * 2 };
+print(duplicate(10));  // 20
+
+// Lambda in pipeline
+let thing = 10 |> fn (a: Int) { a * 2 };
+
+// Lambda used with map-like operations
+let nums = [1, 2, 3];
+nums |> map(fn(x: Int) { x * 2 })
+```
+
+**Benefits**: Supports functional programming paradigms and inline transformations.
+
+### Decision 7: Structs for Composite Data
+
+**Why**: Allows grouping related data with named fields, providing clear semantics and type safety for complex data structures.
+
+```ennuyeux
+struct Point {
+    x: Int;
+    y: Int;
+}
+
+struct Rectangle {
+    origin: Point;
+    width: Int;
+    height: Int;
+}
+
+// Usage
+let p = Point { x: 10, y: 20 };
+let r = Rectangle { origin: p, width: 5, height: 3 };
+print("p.x = " + p.x);
+```
+
+**Benefits**: Distinguishes structs from enums (which represent choices), providing clear intent and enabling field-based access patterns.
+
 ---
 
 ## 3. Type System
@@ -94,6 +158,41 @@ enum Option<T> {
 enum Message {
     Text(String);
     Pair(Int, Int);
+}
+```
+
+#### Structs
+
+```ennuyeux
+// Basic struct
+struct Point {
+    x: Int;
+    y: Int;
+}
+
+// Generic struct
+struct NonEmptyList<T> {
+    head: T;
+    tail: List<T>;
+}
+
+// Composite struct
+struct Rectangle {
+    origin: Point;
+    width: Int;
+    height: Int;
+}
+```
+
+#### Function Types
+
+```ennuyeux
+// Anonymous function type
+let double = fn (a: Int) { a * 2 };
+
+// Function returning a function
+fn make_adder(n: Int) {
+    fn (x: Int) { x + n }
 }
 ```
 

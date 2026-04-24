@@ -50,7 +50,7 @@ typedef enum {
     NODE_LAMBDA,
 } NodeType;
 
-// note: I may use a union in the future to save some memory 
+// note: I may use a union in the future to save some memory
 typedef struct ASTNode {
     NodeType type;
     char* lexeme;
@@ -105,7 +105,7 @@ static inline ASTNode* create_leaf_str(char* str) {
 static inline void print_ast(ASTNode* node, int indent) {
     if (!node) return;
     for (int i = 0; i < indent; i++) printf("  ");
-    
+
     // note: the order depends on the NodeType enum
     const char* type_names[] = {
         "NODE_PROGRAM", "NODE_FUNCTION", "NODE_STMT_LIST", "NODE_LET", "NODE_ASSIGN",

@@ -287,7 +287,7 @@ print(factorial(5));        // 120
 
 ---
 
-## 11. Structs (Enums)
+## 11. Enums and Structs
 
 ```ennuyeux
 // Simple enum
@@ -308,6 +308,35 @@ enum Message {
 let color = Color::Red;
 let msg = Message::Text("Hello");
 let pair_msg = Message::Pair(10, 20);
+
+struct Point {
+    x: int;
+    y: int;
+}
+
+struct NonEmptyList<T> {
+    head: T;
+    tail: List<T>;
+}
+
+struct Rectangle {
+    origin: Point;
+    width: int;
+    height: int;
+}
+
+fn area(rect: Rectangle) {
+    rect.width * rect.height
+}
+
+fn main() {
+    let p = Point { x: 10, y: 20 };
+    print("p.x = " + p.x);
+    print("p.y = " + p.y);
+
+    let r = Rectangle { origin: Point { x: 0, y: 0 }, width: 5, height: 3 };
+    print("area = " + area(r));
+}
 ```
 
 ---
@@ -348,7 +377,52 @@ print("X=" + x + " Y=" + y);
 
 ---
 
-## 14. Examples
+## 14. Anonymouse Functions
+
+```ennuyeux
+// Example: Anonymous Functions (Lambdas)
+fn main() {
+    // Basic lambda assignment
+    let duplicate = fn (a: Int) { a * 2 };
+    print("duplicate(10) = " + duplicate(10));
+
+    // Lambda in pipeline
+    let thing = 10 |> fn (a: Int) { a * 2 };
+
+    // Pipeline with map-like usage (syntax only)
+    let nums = [1, 2, 3];
+    nums |> map(fn(x: Int) { x * 2 })
+}
+```
+
+## 15. Pipelines
+
+```ennuyeux
+// Example: Gleam-style Pipelines (|>)
+fn double(n: Int) { n * 2 }
+fn add(a: Int, b: Int) { a + b }
+fn square(n: Int) { n * n }
+fn to_string(n: Int) { "" + n }
+
+fn main() {
+    // Simple pipeline: value goes as first argument
+    let result = 5 |> double |> square |> to_string;
+    print("5 -> double -> square -> to_string = " + result);
+
+    // Pipeline with placeholder: value goes where _ is
+    let adjusted = 10 |> add(_, 5);
+    print("10 |> add(_, 5) = " + adjusted);
+
+    // Chained with placeholder
+    let complex = 3
+        |> double()
+        |> add(_, 100)
+        |> to_string();
+    print("3 -> double -> add(_, 100) -> to_string = " + complex);
+}
+```
+
+## 16. Examples
 
 ### Example 1: Factorial with Early Return
 
