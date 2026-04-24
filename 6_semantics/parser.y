@@ -35,7 +35,7 @@ ASTNode* root;
 %token POW EQ NEQ LE GE AND OR SHL SHR PIPE ARROW DOTDOT COLONCOLON
 
 %type <node_val> program definition_list definition function_def enum_def struct_def
-%type <node_val> block_body stmt_seq stmt expr match_arms match_arm pattern
+%type <node_val> block_body stmt_seq stmt expr match_arms match_arm pattern ident_list
 %type <node_val> expr_list call_args struct_fields struct_field enum_variants enum_variant
 %type <node_val> list_literal range_expr control_expr struct_literal struct_literal_fields struct_literal_field
 
@@ -110,22 +110,24 @@ enum_variants:
     }
     ;
 
+ident_list:
+    IDENT { $$ = create_leaf_id($1); }
+    | ident_list ',' IDENT {
+        $$ = create_node(NODE_IDENT_LIST);
+        $$->left = $1;
+        $$->right = create_leaf_id($3);
+    }
+    ;
+
 enum_variant:
     IDENT ';' {
         $$ = create_node(NODE_ENUM_VARIANT);
         $$->lexeme = ast_strdup($1);
     }
-    | IDENT '(' IDENT ')' ';' { 
+    | IDENT '(' ident_list ')' ';' { 
         $$ = create_node(NODE_ENUM_VARIANT);
         $$->lexeme = ast_strdup($1);
-        $$->args = create_leaf_id($3);
-    }
-    | IDENT '(' IDENT ',' IDENT ')' ';' {
-        $$ = create_node(NODE_ENUM_VARIANT);
-        $$->lexeme = ast_strdup($1);
-        ASTNode* a1 = create_leaf_id($3);
-        a1->next = create_leaf_id($5);
-        $$->args = a1;
+        $$->args = $3;
     }
     ;
 

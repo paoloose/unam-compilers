@@ -12,7 +12,7 @@ enum Message {
 }
 
 fn main() {
-    let color = Color.Red;
+    let color = Color::Red;
     print("Color: Red");
 
     let msg1 = Message::Text("Hello");
