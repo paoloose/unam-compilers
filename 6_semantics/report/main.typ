@@ -835,3 +835,47 @@ let simple = fn (x) { x + 1 };
 
 Lambdas are represented via `NODE_LAMBDA` nodes, which contain an optional list of parameters (`args`) and a block body (`body`). The flexibility of the grammar allows lambdas to be used anywhere an expression is valid, including variable assignments and pipeline stages.
 
+= Extras
+
+== Dockerfile (+1)
+
+A simple Dockerfile packaging gcc, flex and bison is provided in the project root.
+
+```sh
+docker build -t ennuyeux-tests .
+docker run --rm ennuyeux-tests
+```
+
+Its sole purpose is to run the `run_tests.sh` script, which builds and tests the parser
+against all the available examples.
+
+```console
+$ docker run --rm ennuyeux-tests
+
+make: Nothing to be done for 'all'.
+
+🪰 Running Test Suite...\n
+✅ [01_arithmetic.ennuyeux           ] PASS
+✅ [02_logical_bitwise.ennuyeux      ] PASS
+✅ [03_conditionals.ennuyeux         ] PASS
+✅ [04_loops.ennuyeux                ] PASS
+✅ [05_for_range.ennuyeux            ] PASS
+✅ [06_pattern_matching.ennuyeux     ] PASS
+✅ [07_range_patterns.ennuyeux       ] PASS
+✅ [08_functions.ennuyeux            ] PASS
+✅ [09_result_option.ennuyeux        ] PASS
+✅ [10_enums.ennuyeux                ] PASS
+✅ [11_structs.ennuyeux              ] PASS
+✅ [12_lists.ennuyeux                ] PASS
+✅ [13_pipelines.ennuyeux            ] PASS
+✅ [14_placeholders.ennuyeux         ] PASS
+✅ [15_fibonacci.ennuyeux            ] PASS
+✅ [16_member_access.ennuyeux        ] PASS
+✅ [17_block_expressions.ennuyeux    ] PASS
+✅ [18_error_invalid_syntax.ennuyeux ] PASS (Expected Failure)
+✅ [19_lambdas.ennuyeux              ] PASS
+✅ [simple.ennuyeux                  ] PASS
+
+🪰 Got 20 / 20 passed
+All tests passed successfully 🪰🪰
+```
