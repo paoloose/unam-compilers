@@ -9,6 +9,8 @@ Ennuyeux is a functional, expression-based language with strong semantics suppor
 - Implicit returns from functions
 - Explicit early returns with `return` keyword
 
+Ennuyeux is the French word for boring, which perfecly describes this language. It is indeed boring, but it aims to be the fastest in the performance competition.
+
 ---
 
 ## 1. Variables & Assignments
