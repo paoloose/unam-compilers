@@ -97,7 +97,7 @@ function_def:
         $$ = create_node(NODE_FUNCTION);
         $$->lexeme = ast_strdup($2);
         $$->args = $4;
-        $$->right = $6;
+        $$->return_type = $6;
         $$->body = $8;
     }
     | FN IDENT '<' type_params_list '>' '(' call_args ')' return_type_opt '{' block_body '}' {
@@ -105,7 +105,7 @@ function_def:
         $$->lexeme = ast_strdup($2);
         $$->args = $7;
         $$->generic_args = $4;
-        $$->right = $9;
+        $$->return_type = $9;
         $$->body = $11;
     }
 
@@ -188,10 +188,16 @@ block_body:
     | stmt_seq expr {
         ASTNode* n = $1;
         while(n->next) n = n->next;
-        n->next = $2;
+        ASTNode* ret_node = create_node(NODE_RETURN);
+        ret_node->right = $2;
+        n->next = ret_node;
         $$ = $1;
     }
-    | expr { $$ = $1; }
+    | expr {
+        ASTNode* ret_node = create_node(NODE_RETURN);
+        ret_node->right = $1;
+        $$ = ret_node;
+    }
     ;
 
 stmt_seq:
@@ -365,7 +371,7 @@ expr:
     | FN '(' lambda_args ')' return_type_opt '{' block_body '}' {
         $$ = create_node(NODE_LAMBDA);
         $$->args = $3;
-        $$->right = $5;
+        $$->return_type = $5;
         $$->body = $7;
     }
     ;

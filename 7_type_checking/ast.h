@@ -33,6 +33,7 @@ typedef enum {
     NODE_UNARY_OP,
     NODE_IDENTIFIER,
     NODE_TYPE_IDENTIFIER,
+    NODE_GENERIC_TYPE,
     NODE_INT_LITERAL,
     NODE_FLOAT_LITERAL,
     NODE_BOOL_LITERAL,
@@ -48,7 +49,6 @@ typedef enum {
     NODE_PLACEHOLDER, // '_'
     NODE_MEMBER_ACCESS, // '.'
     NODE_RANGE,
-    NODE_GENERIC_TYPE,
     NODE_LAMBDA,
 } NodeType;
 
@@ -70,7 +70,9 @@ typedef struct ASTNode {
     // Populated in the semantic analysis phase
     // That is, if this node evaluates to a type, then after calling `analyze_node`,
     // this value must've been populated
-    char* evaluates_to_type;
+    struct ASTNode* evaluates_to_type;
+    // For functions
+    struct ASTNode* return_type;
 } ASTNode;
 
 static inline ASTNode* create_node(NodeType type) {
@@ -120,11 +122,11 @@ static inline void print_ast(ASTNode* node, int indent) {
         "NODE_PROGRAM", "NODE_FUNCTION", "NODE_STMT_LIST", "NODE_LET", "NODE_ASSIGN",
         "NODE_IF", "NODE_FOR", "NODE_LOOP", "NODE_MATCH",
         "NODE_MATCH_ARM", "NODE_RETURN", "NODE_BREAK", "NODE_IDENT_LIST", "NODE_FUNC_PARAMETER",
-        "NODE_BINARY_OP", "NODE_UNARY_OP", "NODE_IDENTIFIER", "NODE_TYPE_IDENTIFIER", "NODE_INT_LITERAL",
-        "NODE_FLOAT_LITERAL", "NODE_BOOL_LITERAL", "NODE_STRING_LITERAL", "NODE_CALL",
+        "NODE_BINARY_OP", "NODE_UNARY_OP", "NODE_IDENTIFIER", "NODE_TYPE_IDENTIFIER", "NODE_GENERIC_TYPE",
+        "NODE_INT_LITERAL", "NODE_FLOAT_LITERAL", "NODE_BOOL_LITERAL", "NODE_STRING_LITERAL", "NODE_CALL",
         "NODE_ENUM_DECL", "NODE_ENUM_VARIANT", "NODE_STRUCT_DECL", "NODE_STRUCT_LITERAL", "NODE_STRUCT_FIELD",
         "NODE_LIST_LITERAL", "NODE_PIPELINE", "NODE_PLACEHOLDER", "NODE_MEMBER_ACCESS",
-        "NODE_RANGE", "NODE_GENERIC_TYPE", "NODE_LAMBDA"
+        "NODE_RANGE", "NODE_LAMBDA"
     };
 
     printf("[%s]", type_names[node->type]);
