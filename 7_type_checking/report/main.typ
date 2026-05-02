@@ -125,7 +125,7 @@
   However, because Ennuyeux programs can contains an indefinite set of nested operations,
   using a non-recursive Visitor approach would be better, to avoid potential stack overflows.
 
-  In terms of our own code scalability, replacing recursivve calls with an explicit stack/queue
+  In terms of our own code scalability, replacing recursive calls with an explicit stack/queue
   is a simple, one-time change that is not hard at all to maintain.
 
 - *Error Containment: Instead of throwing an exit(1) at the first compilation error, what structure would you use in C/C++ (e.g., a global list of strings, or an array of logs) to accumulate and report multiple failures at the end of processing?*
