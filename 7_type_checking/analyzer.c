@@ -5,7 +5,6 @@
 #include "analyzer.h"
 #include "ast.h"
 #include "debug.h"
-#include "builtins.h"
 
 static void push_scope(Scope** current_scope) {
     Scope* scope = calloc(1, sizeof(Scope));
@@ -21,9 +20,23 @@ static void pop_scope(Scope** current_scope) {
 }
 
 SymbolTableEntry* find_symbol(Scope* current_scope, char* name) {
+    extern SymbolTableEntry int_symbol;
+    extern SymbolTableEntry float_symbol;
+    extern SymbolTableEntry bool_symbol;
+    extern SymbolTableEntry string_symbol;
+
     // builtins
     if (strcmp(name, "int") == 0) {
         return &int_symbol;
+    }
+    if (strcmp(name, "float") == 0) {
+        return &float_symbol;
+    }
+    if (strcmp(name, "bool") == 0) {
+        return &bool_symbol;
+    }
+    if (strcmp(name, "string") == 0) {
+        return &string_symbol;
     }
     Scope* s = current_scope;
     while (s) {
@@ -347,8 +360,7 @@ void analyze_node(Scope* current_scope, ASTNode* node) {
                     UNAM_ASSERT(false, "TODO return error, expected to return a type, but returned nothing");
                 }
             }
-            UNAM_DEBUG("NODE_RETURN not implemented");
-            exit(69);
+            break;
         };
         case NODE_BREAK: {
             UNAM_DEBUG("NODE_BREAK not implemented");
@@ -396,20 +408,28 @@ void analyze_node(Scope* current_scope, ASTNode* node) {
             break;
         };
         case NODE_INT_LITERAL: {
-            UNAM_DEBUG("NODE_INT_LITERAL not implemented");
-            exit(69);
+            SymbolTableEntry* int_type = find_symbol(current_scope, "int");
+            UNAM_ASSERT(int_type != NULL, "int type is not defined");
+            node->evaluates_to_type = int_type->type_node;
+            break;
         };
         case NODE_FLOAT_LITERAL: {
-            UNAM_DEBUG("NODE_FLOAT_LITERAL not implemented");
-            exit(69);
+            SymbolTableEntry* float_type = find_symbol(current_scope, "float");
+            UNAM_ASSERT(float_type != NULL, "float type is not defined");
+            node->evaluates_to_type = float_type->type_node;
+            break;
         };
         case NODE_BOOL_LITERAL: {
-            UNAM_DEBUG("NODE_BOOL_LITERAL not implemented");
-            exit(69);
+            SymbolTableEntry* bool_type = find_symbol(current_scope, "bool");
+            UNAM_ASSERT(bool_type != NULL, "bool type is not defined");
+            node->evaluates_to_type = bool_type->type_node;
+            break;
         };
         case NODE_STRING_LITERAL: {
-            UNAM_DEBUG("NODE_STRING_LITERAL not implemented");
-            exit(69);
+            SymbolTableEntry* string_type = find_symbol(current_scope, "string");
+            UNAM_ASSERT(string_type != NULL, "string type is not defined");
+            node->evaluates_to_type = string_type->type_node;
+            break;
         };
         case NODE_ENUM_DECL: {
             UNAM_DEBUG("NODE_ENUM_DECL not implemented");
