@@ -10,7 +10,7 @@ CFLAGS = -Wall -Wextra -std=c11
 LEX_FILE = lexer.l
 YACC_FILE = parser.y
 ANALYZER_SRC = analyzer.c
-HEADERS = ast.h analyzer.h debug.h
+HEADERS = ast.h analyzer.h debug.h darray.h builtins.h
 
 # Generated files
 LEX_OUT = lex.yy.c
