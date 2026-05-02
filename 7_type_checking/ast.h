@@ -45,6 +45,7 @@ typedef enum {
     NODE_STRUCT_LITERAL,
     NODE_STRUCT_FIELD,
     NODE_LIST_LITERAL,
+    NODE_LIST_PATTERN,
     NODE_PIPELINE,
     NODE_PLACEHOLDER, // '_'
     NODE_MEMBER_ACCESS, // '.'
@@ -125,7 +126,7 @@ static inline void print_ast(ASTNode* node, int indent) {
         "NODE_BINARY_OP", "NODE_UNARY_OP", "NODE_IDENTIFIER", "NODE_TYPE_IDENTIFIER", "NODE_GENERIC_TYPE",
         "NODE_INT_LITERAL", "NODE_FLOAT_LITERAL", "NODE_BOOL_LITERAL", "NODE_STRING_LITERAL", "NODE_CALL",
         "NODE_ENUM_DECL", "NODE_ENUM_VARIANT", "NODE_STRUCT_DECL", "NODE_STRUCT_LITERAL", "NODE_STRUCT_FIELD",
-        "NODE_LIST_LITERAL", "NODE_PIPELINE", "NODE_PLACEHOLDER", "NODE_MEMBER_ACCESS",
+        "NODE_LIST_LITERAL", "NODE_LIST_PATTERN", "NODE_PIPELINE", "NODE_PLACEHOLDER", "NODE_MEMBER_ACCESS",
         "NODE_RANGE", "NODE_LAMBDA"
     };
 
@@ -147,6 +148,11 @@ static inline void print_ast(ASTNode* node, int indent) {
         PRINT_INDEN(indent);
         printf("(args)\n");
         print_ast(node->args, indent + 2);
+    }
+    if (node->return_type) {
+        PRINT_INDEN(indent);
+        printf("(return_type)\n");
+        print_ast(node->return_type, indent + 2);
     }
     if (node->body) {
         PRINT_INDEN(indent);

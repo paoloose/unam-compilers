@@ -598,7 +598,7 @@ pattern:
     expr { $$ = $1; }
     /* '[' expr_list ']' removed, already covered by expr list_literal */
     | '[' expr_list ',' DOTDOT IDENT ']' {
-        $$ = create_node(NODE_LIST_LITERAL);
+        $$ = create_node(NODE_LIST_PATTERN);
         ASTNode* n = $2;
         if (n) {
             while(n->next) n = n->next;
