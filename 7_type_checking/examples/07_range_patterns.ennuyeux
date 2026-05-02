@@ -1,12 +1,12 @@
 // Example: Range Patterns in Match
 fn grade_letter(score: Int) {
     match (score) {
-        0..50 => "F";
-        51..70 => "C";
-        71..85 => "B";
-        86..100 => "A";
-        n if n > 100 => "Invalid";
-        _ => "Unknown";
+        0..50 -> "F";
+        51..70 -> "C";
+        71..85 -> "B";
+        86..100 -> "A";
+        n if n > 100 -> "Invalid";
+        _ -> "Unknown";
     }
 };
 

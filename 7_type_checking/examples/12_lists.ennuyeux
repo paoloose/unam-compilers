@@ -1,14 +1,14 @@
 fn head(list: List<T>) {
     match (list) {
-        [first, ..rest] => Some(first);
-        _ => None;
+        [first, ..rest] -> Some(first);
+        _ -> None;
     }
 }
 
 fn sum_list(list: List<T>) {
     match (list) {
-        [x, ..rest] => x + sum_list(rest);
-        _ => 0;
+        [x, ..rest] -> x + sum_list(rest);
+        _ -> 0;
     }
 }
 
@@ -20,22 +20,22 @@ fn main() {
 
     // Pattern matching on lists
     match (numbers) {
-        [1, ..rest] => print("Starts with 1");
-        [4, ..rest] => print("Starts with 4");
-        _ => print("Other");
+        [1, ..rest] -> print("Starts with 1");
+        [4, ..rest] -> print("Starts with 4");
+        _ -> print("Other");
     };
 
     // head function
     match (head(numbers)) {
-        Some(x) => print("Head: " + x);
-        None => print("Empty list");
+        Some(x) -> print("Head: " + x);
+        None -> print("Empty list");
     };
 
     // Empty list
     let empty = [];
     match (head(empty)) {
-        Some(x) => print("Head: " + x);
-        None => print("Empty list");
+        Some(x) -> print("Head: " + x);
+        None -> print("Empty list");
     };
 
     print("Sum: " + sum_list(numbers));

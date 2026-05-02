@@ -1,12 +1,12 @@
 // Example: Pattern Matching with Guards
 fn classify_value(x: Int) {
     match (x) {
-        0 => "Zero";
-        1 => "One";
-        n if n < 0 => "Negative";
-        n if n < 10 => "Single digit";
-        n if n < 100 => "Double digit";
-        _ => "Large number";
+        0 -> "Zero";
+        1 -> "One";
+        n if n < 0 -> "Negative";
+        n if n < 10 -> "Single digit";
+        n if n < 100 -> "Double digit";
+        _ -> "Large number";
     }
 }
 

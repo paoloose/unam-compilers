@@ -14,9 +14,9 @@ fn main() {
 
     // Match as expression
     let label = match (x) {
-        0 => "zero";
-        n if n > 0 => "positive";
-        _ => "negative";
+        0 -> "zero";
+        n if n > 0 -> "positive";
+        _ -> "negative";
     };
     print("Label: " + label);
 

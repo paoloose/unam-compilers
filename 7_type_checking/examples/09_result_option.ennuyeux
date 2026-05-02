@@ -19,19 +19,19 @@ fn find_index(list: List<Int>, target: Int) {
 fn main() {
     // Result usage
     match (safe_divide(10, 2)) {
-        Ok(result) => print("10 / 2 = " + result);
-        Err(msg) => print("Error: " + msg);
+        Ok(result) -> print("10 / 2 = " + result);
+        Err(msg) -> print("Error: " + msg);
     };
 
     match (safe_divide(10, 0)) {
-        Ok(result) => print("10 / 0 = " + result);
-        Err(msg) => print("Error: " + msg);
+        Ok(result) -> print("10 / 0 = " + result);
+        Err(msg) -> print("Error: " + msg);
     };
 
     // Option usage
     let idx = find_index([10, 20, 30], 20);
     match (idx) {
-        Some(i) => print("Found at index " + i);
-        None => print("Not found");
+        Some(i) -> print("Found at index " + i);
+        None -> print("Not found");
     };
 }

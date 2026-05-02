@@ -23,6 +23,8 @@ fn main() {
     print("p.x = " + p.x);
     print("p.y = " + p.y);
 
+    let mylist = NonEmptyList<Int> {};
+
     let r = Rectangle { origin: Point { x: 0, y: 0 }, width: 5, height: 3 };
     print("area = " + area(r));
 }
