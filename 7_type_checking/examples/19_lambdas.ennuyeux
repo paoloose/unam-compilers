@@ -1,0 +1,13 @@
+// Example: Anonymous Functions (Lambdas)
+fn main() {
+    // Basic lambda assignment
+    let duplicate = fn (a: Int) { a * 2 };
+    print("duplicate(10) = " + duplicate(10));
+
+    // Lambda in pipeline
+    let thing = 10 |> fn (a: Int) { a * 2 };
+
+    // Pipeline with map-like usage (syntax only)
+    let nums = [1, 2, 3];
+    nums |> map(fn(x: Int) { x * 2 })
+}

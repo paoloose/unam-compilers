@@ -1,0 +1,17 @@
+# Build artifacts
+ennuyeux_parser
+*.o
+
+# Lexer/Parser generated files
+lex.yy.c
+parser.tab.c
+parser.tab.h
+parser.output
+
+# Report artifacts
+report/main.pdf
+
+# OS/Editor junk
+.DS_Store
+*~
+#*#

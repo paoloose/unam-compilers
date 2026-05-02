@@ -1,0 +1,32 @@
+// Example: Block Expressions (everything is an expression)
+fn main() {
+    // Block as value
+    let x = {
+        let a = 10;
+        let b = 20;
+        a + b
+    };
+    print("Block result: " + x);
+
+    // If-else as expression
+    let sign = if (x > 0) { "positive" } else { "non-positive" };
+    print("Sign: " + sign);
+
+    // Match as expression
+    let label = match (x) {
+        0 => "zero";
+        n if n > 0 => "positive";
+        _ => "negative";
+    };
+    print("Label: " + label);
+
+    // Loop-break as expression
+    let first_even = loop {
+        for (let i = 1; i < 100; i = i + 1) {
+            if (i % 2 == 0) {
+                break i;
+            };
+        };
+    };
+    print("First even: " + first_even);
+}
