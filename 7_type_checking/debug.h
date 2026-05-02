@@ -32,7 +32,7 @@
 #   define UNAM_ASSERT(cond, msg, ...) \
         do { \
             if (!(cond)) { \
-                UNAM_DEBUG(UNAM_RED "Assertion failed: (%s): " UNAM_RESET msg __VA_ARGS__, #cond, ##__VA_ARGS__); \
+                UNAM_DEBUG(UNAM_RED "Assertion failed: (%s): " UNAM_RESET msg __VA_ARGS__ "\n", #cond, ##__VA_ARGS__); \
                 exit(1); \
             } \
         } while (0)
