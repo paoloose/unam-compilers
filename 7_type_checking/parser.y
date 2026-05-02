@@ -37,9 +37,10 @@ ASTNode* root;
 %token INC DEC ADD_ASSIGN SUB_ASSIGN MUL_ASSIGN DIV_ASSIGN MOD_ASSIGN
 
 %type <node_val> program definition_list definition function_def enum_def struct_def
-%type <node_val> block_body stmt_seq stmt expr match_arms match_arm pattern ident_list type_expr type_params_list
+%type <node_val> block_body stmt_seq stmt expr match_arms match_arm pattern type_expr type_params_list
 %type <node_val> expr_list call_args func_param lambda_args struct_fields struct_field enum_variants enum_variant
 %type <node_val> list_literal control_expr struct_literal struct_literal_fields struct_literal_field
+%type <node_val> return_type_opt
 
 %right '=' ADD_ASSIGN SUB_ASSIGN MUL_ASSIGN DIV_ASSIGN MOD_ASSIGN
 %left OR
@@ -64,7 +65,12 @@ ASTNode* root;
 %%
 
 program:
-    definition_list { root = $1; }
+    definition_list {
+        $$ = create_node(NODE_PROGRAM);
+        $$->lexeme = "__main__";
+        $$->body = $1;
+        root = $$;
+    }
     | /* empty */ { root = NULL; }
     ;
 
@@ -87,20 +93,25 @@ definition:
     ;
 
 function_def:
-    FN IDENT '(' call_args ')' '{' block_body '}' {
+    FN IDENT '(' call_args ')' return_type_opt '{' block_body '}' {
         $$ = create_node(NODE_FUNCTION);
         $$->lexeme = ast_strdup($2);
         $$->args = $4;
-        $$->body = $7;
+        $$->right = $6;
+        $$->body = $8;
     }
-    | FN IDENT '<' ident_list '>' '(' call_args ')' '{' block_body '}' {
+    | FN IDENT '<' type_params_list '>' '(' call_args ')' return_type_opt '{' block_body '}' {
         $$ = create_node(NODE_FUNCTION);
         $$->lexeme = ast_strdup($2);
-        // We can store generic params in a dedicated field or just prepend to args
         $$->args = $7;
-        $$->left = $4; // Store generic list in 'left' for now
-        $$->body = $10;
+        $$->generic_args = $4;
+        $$->right = $9;
+        $$->body = $11;
     }
+
+return_type_opt:
+    /* empty */ { $$ = NULL; }
+    | ARROW type_expr { $$ = $2; }
     ;
 
 enum_def:
@@ -109,10 +120,10 @@ enum_def:
         $$->lexeme = ast_strdup($2);
         $$->args = $4;
     }
-    | ENUM IDENT '<' ident_list '>' '{' enum_variants '}' {
+    | ENUM IDENT '<' type_params_list '>' '{' enum_variants '}' {
         $$ = create_node(NODE_ENUM_DECL);
         $$->lexeme = ast_strdup($2);
-        $$->left = $4; // Generic params
+        $$->generic_args = $4;
         $$->args = $7;
     }
     ;
@@ -127,22 +138,12 @@ enum_variants:
     }
     ;
 
-ident_list:
-    IDENT { $$ = create_leaf_id($1); }
-    | ident_list ',' IDENT {
-        ASTNode* n = $1;
-        while(n->next) n = n->next;
-        n->next = create_leaf_id($3);
-        $$ = $1;
-    }
-    ;
-
 enum_variant:
     IDENT ';' {
         $$ = create_node(NODE_ENUM_VARIANT);
         $$->lexeme = ast_strdup($1);
     }
-    | IDENT '(' ident_list ')' ';' {
+    | IDENT '(' type_params_list ')' ';' {
         $$ = create_node(NODE_ENUM_VARIANT);
         $$->lexeme = ast_strdup($1);
         $$->args = $3;
@@ -155,10 +156,10 @@ struct_def:
         $$->lexeme = ast_strdup($2);
         $$->args = $4;
     }
-    | STRUCT IDENT '<' ident_list '>' '{' struct_fields '}' {
+    | STRUCT IDENT '<' type_params_list '>' '{' struct_fields '}' {
         $$ = create_node(NODE_STRUCT_DECL);
         $$->lexeme = ast_strdup($2);
-        $$->left = $4; // Generic params
+        $$->generic_args = $4;
         $$->args = $7;
     }
     ;
@@ -177,7 +178,7 @@ struct_field:
     IDENT ':' type_expr ';' {
         $$ = create_node(NODE_STRUCT_FIELD);
         $$->lexeme = ast_strdup($1);
-        $$->left = $3;
+        $$->right = $3;
     }
     ;
 
@@ -295,7 +296,7 @@ expr:
     | expr '|' expr { $$ = create_node(NODE_BINARY_OP); $$->lexeme = ast_strdup("|"); $$->left = $1; $$->right = $3; }
     | expr '^' expr { $$ = create_node(NODE_BINARY_OP); $$->lexeme = ast_strdup("^"); $$->left = $1; $$->right = $3; }
     | expr SHL expr { $$ = create_node(NODE_BINARY_OP); $$->lexeme = ast_strdup("<<"); $$->left = $1; $$->right = $3; }
-    | expr SHR expr { $$ = create_node(NODE_BINARY_OP); $$->lexeme = ast_strdup(">>"); $$->left = $1; $$->right = $3; }
+    | expr '>' '>' expr { $$ = create_node(NODE_BINARY_OP); $$->lexeme = ast_strdup(">>"); $$->left = $1; $$->right = $4; }
     | expr EQ expr { $$ = create_node(NODE_BINARY_OP); $$->lexeme = ast_strdup("=="); $$->left = $1; $$->right = $3; }
     | expr NEQ expr { $$ = create_node(NODE_BINARY_OP); $$->lexeme = ast_strdup("!="); $$->left = $1; $$->right = $3; }
     | expr '<' expr { $$ = create_node(NODE_BINARY_OP); $$->lexeme = ast_strdup("<"); $$->left = $1; $$->right = $3; }
@@ -361,10 +362,11 @@ expr:
         $$->left = $1;
         $$->right = $3;
     }
-    | FN '(' lambda_args ')' '{' block_body '}' {
+    | FN '(' lambda_args ')' return_type_opt '{' block_body '}' {
         $$ = create_node(NODE_LAMBDA);
         $$->args = $3;
-        $$->body = $6;
+        $$->right = $5;
+        $$->body = $7;
     }
     ;
     ;
@@ -373,8 +375,14 @@ expr:
     ;
 
 struct_literal:
-    IDENT '{' struct_literal_fields '}' {
-        $$ = create_node(NODE_STRUCT_DECL);
+    IDENT '<' type_params_list '>' '{' struct_literal_fields '}' {
+        $$ = create_node(NODE_STRUCT_LITERAL);
+        $$->lexeme = ast_strdup($1);
+        $$->generic_args = $3;
+        $$->args = $6;
+    }
+    | IDENT '{' struct_literal_fields '}' {
+        $$ = create_node(NODE_STRUCT_LITERAL);
         $$->lexeme = ast_strdup($1);
         $$->args = $3;
     }
@@ -519,7 +527,7 @@ func_param:
     IDENT ':' type_expr {
         $$ = create_node(NODE_FUNC_PARAMETER);
         $$->lexeme = ast_strdup($1);
-        $$->left = $3;
+        $$->right = $3;
     }
     ;
 
@@ -535,11 +543,14 @@ lambda_args:
     ;
 
 type_expr:
-    IDENT { $$ = create_leaf_id($1); }
+    IDENT {
+        $$ = create_node(NODE_TYPE_IDENTIFIER);
+        $$->lexeme = ast_strdup($1);
+    }
     | IDENT '<' type_params_list '>' {
         $$ = create_node(NODE_GENERIC_TYPE);
         $$->lexeme = ast_strdup($1);
-        $$->args = $3;
+        $$->generic_args = $3;
     }
     ;
 

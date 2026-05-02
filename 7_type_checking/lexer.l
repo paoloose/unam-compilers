@@ -50,9 +50,8 @@ int yycolumn = 1;
 "&&"               { return AND; }
 "||"               { return OR; }
 "<<"               { return SHL; }
-">>"               { return SHR; }
 "|>"               { return PIPE; }
-"=>"               { return ARROW; }
+"->"               { return ARROW; }
 ".."               { return DOTDOT; }
 "::"               { return COLONCOLON; }
 "++"               { return INC; }
