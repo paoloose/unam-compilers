@@ -1,5 +1,4 @@
-#ifndef AST_H
-#define AST_H
+#pragma once
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -28,7 +27,7 @@ typedef enum {
     NODE_RETURN,
     NODE_BREAK,
     NODE_IDENT_LIST,
-    NODE_PARAMETER,
+    NODE_FUNC_PARAMETER,
     NODE_BINARY_OP,
     NODE_UNARY_OP,
     NODE_IDENTIFIER,
@@ -102,15 +101,17 @@ static inline ASTNode* create_leaf_str(char* str) {
     return node;
 }
 
+#define PRINT_INDEN(indent) for (int i = 0; i <= (indent); i++) printf("  ");
+
 static inline void print_ast(ASTNode* node, int indent) {
     if (!node) return;
-    for (int i = 0; i < indent; i++) printf("  ");
+    PRINT_INDEN(indent - 1);
 
     // note: the order depends on the NodeType enum
     const char* type_names[] = {
         "NODE_PROGRAM", "NODE_FUNCTION", "NODE_STMT_LIST", "NODE_LET", "NODE_ASSIGN",
         "NODE_IF", "NODE_FOR", "NODE_LOOP", "NODE_MATCH",
-        "NODE_MATCH_ARM", "NODE_RETURN", "NODE_BREAK", "NODE_IDENT_LIST", "NODE_PARAMETER",
+        "NODE_MATCH_ARM", "NODE_RETURN", "NODE_BREAK", "NODE_IDENT_LIST", "NODE_FUNC_PARAMETER",
         "NODE_BINARY_OP", "NODE_UNARY_OP", "NODE_IDENTIFIER", "NODE_INT_LITERAL",
         "NODE_FLOAT_LITERAL", "NODE_BOOL_LITERAL", "NODE_STRING_LITERAL", "NODE_CALL",
         "NODE_ENUM_DECL", "NODE_ENUM_VARIANT", "NODE_STRUCT_DECL", "NODE_STRUCT_FIELD",
@@ -128,26 +129,24 @@ static inline void print_ast(ASTNode* node, int indent) {
     if (node->left) print_ast(node->left, indent + 1);
     if (node->right) print_ast(node->right, indent + 1);
     if (node->cond) {
-        for (int i = 0; i <= indent; i++) printf("  ");
+        PRINT_INDEN(indent);
         printf("(cond)\n");
         print_ast(node->cond, indent + 2);
     }
     if (node->args) {
-        for (int i = 0; i <= indent; i++) printf("  ");
+        PRINT_INDEN(indent);
         printf("(args)\n");
         print_ast(node->args, indent + 2);
     }
     if (node->body) {
-        for (int i = 0; i <= indent; i++) printf("  ");
+        PRINT_INDEN(indent);
         printf("(body)\n");
         print_ast(node->body, indent + 2);
     }
     if (node->else_branch) {
-        for (int i = 0; i <= indent; i++) printf("  ");
+        PRINT_INDEN(indent);
         printf("(else)\n");
         print_ast(node->else_branch, indent + 2);
     }
     if (node->next) print_ast(node->next, indent);
 }
-
-#endif

@@ -1,3 +1,3 @@
-fn main() {
-    let a = print(10);
+fn main(foo: int, bar: Baz) {
+    let a = double(10);
 }

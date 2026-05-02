@@ -25,7 +25,7 @@
 
 == Repo URL
 
-#link("https://github.com/paoloose/unam-compilers/tree/main/6_semantics")
+#link("https://github.com/paoloose/unam-compilers/tree/main/7_type_checking")
 
 = Design Questionnaire
 

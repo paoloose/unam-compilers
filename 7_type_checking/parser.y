@@ -323,6 +323,7 @@ expr:
             $$->lexeme = ast_strdup($1->lexeme);
         }
         else {
+            // Must evaluate before calling!
             $$->lexeme = ast_strdup("<dynamic>");
             $$->left = $1;
         }
@@ -516,7 +517,7 @@ call_args:
 
 func_param:
     IDENT ':' type_expr {
-        $$ = create_node(NODE_PARAMETER);
+        $$ = create_node(NODE_FUNC_PARAMETER);
         $$->lexeme = ast_strdup($1);
         $$->left = $3;
     }

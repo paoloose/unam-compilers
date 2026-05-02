@@ -1,5 +1,4 @@
-#ifndef ANALYZER_H
-#define ANALYZER_H
+#pragma once
 
 #include "ast.h"
 
@@ -7,7 +6,6 @@
 typedef struct Symbol {
     char* name;
     ASTNode* type_node; // type information
-    int is_function;
     struct Symbol* next;
 } Symbol;
 
@@ -18,5 +16,3 @@ typedef struct Scope {
 } Scope;
 
 void analyze_semantics(ASTNode* root);
-
-#endif
