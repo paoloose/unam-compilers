@@ -1,22 +1,31 @@
-.PHONY: all clean build run help
+.PHONY: all clean build run debug help
 
 # Tools
 FLEX = flex
 BISON = bison
 CC = gcc
+
+# Flags
 CFLAGS = -Wall -Wextra -std=c11
+DEBUGFLAGS = -g -O0
+
+# Allow passing CLI args:
+# make run ARGS="file.en arg2"
+# make debug ARGS="file.en"
+ARGS ?=
 
 # Source files
 LEX_FILE = lexer.l
 YACC_FILE = parser.y
 ANALYZER_SRC = analyzer.c
-HEADERS = ast.h analyzer.h debug.h darray.h builtins.h
+HEADERS = ast.h analyzer.h debug.h darray.h
+BUILTINS = builtins.c
 
 # Generated files
 LEX_OUT = lex.yy.c
 YACC_OUT = parser.tab.c
 YACC_HEADER = parser.tab.h
-OBJS = lex.yy.o parser.tab.o analyzer.o
+OBJS = lex.yy.o parser.tab.o analyzer.o builtins.o
 
 EXECUTABLE = ennuyeux_parser
 
@@ -27,6 +36,9 @@ $(EXECUTABLE): $(OBJS)
 	$(CC) $(CFLAGS) -o $(EXECUTABLE) $(OBJS) -lm
 
 # Dependencies
+builtins.o: $(BUILTINS) $(HEADERS)
+	$(CC) $(CFLAGS) -c $(BUILTINS)
+
 analyzer.o: analyzer.c $(HEADERS)
 	$(CC) $(CFLAGS) -c analyzer.c
 
@@ -46,7 +58,11 @@ $(LEX_OUT): $(LEX_FILE) $(YACC_HEADER)
 build: all
 
 run: all
-	./$(EXECUTABLE)
+	./$(EXECUTABLE) $(ARGS)
+
+debug: CFLAGS += $(DEBUGFLAGS)
+debug: clean all
+	gdb --args ./$(EXECUTABLE) $(ARGS)
 
 clean:
 	rm -f $(LEX_OUT) $(YACC_OUT) $(YACC_HEADER) $(OBJS) $(EXECUTABLE)
@@ -57,7 +73,10 @@ help:
 	@echo "------------------------------"
 	@echo
 	@echo "Targets:"
-	@echo "  make all       - Build the parser (default)"
-	@echo "  make run       - Build and run"
-	@echo "  make clean     - Remove generated files"
-	@echo "  make help      - Show this message"
+	@echo "  make all                 - Build the parser (default)"
+	@echo "  make run                 - Build and run"
+	@echo "  make run ARGS=\"file\""
+	@echo "  make debug               - Build with -g and open gdb"
+	@echo "  make debug ARGS=\"file\""
+	@echo "  make clean               - Remove generated files"
+	@echo "  make help                - Show this message"
