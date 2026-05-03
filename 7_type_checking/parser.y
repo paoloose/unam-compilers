@@ -332,8 +332,8 @@ expr:
         else {
             // Must evaluate before calling!
             $$->lexeme = ast_strdup("<dynamic>");
-            $$->left = $1;
         }
+        $$->left = $1;
         $$->args = $3;
     }
     | expr COLONCOLON IDENT {
@@ -550,7 +550,7 @@ lambda_args:
 
 type_expr:
     IDENT {
-        $$ = create_node(NODE_TYPE_IDENTIFIER);
+        $$ = create_node(NODE_CONCRETE_TYPE);
         $$->lexeme = ast_strdup($1);
     }
     | IDENT '<' type_params_list '>' {
@@ -657,7 +657,9 @@ int main(int argc, char** argv) {
 
     if (yyparse() == 0) {
         print_ast(root, 0);
-        analyze_semantics(root);
+        if (!analyze_semantics(root)) {
+            return 1;
+        }
     }
     else {
         printf("Parsing failed.\n");
