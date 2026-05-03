@@ -15,48 +15,50 @@ static inline char* ast_strdup(const char* s) {
 }
 
 typedef enum {
-    NODE_PROGRAM,
-    NODE_FUNCTION,
-    NODE_STMT_LIST,
-    NODE_LET,
-    NODE_ASSIGN,
-    NODE_IF,
-    NODE_FOR,
-    NODE_LOOP,
-    NODE_MATCH,
-    NODE_MATCH_ARM,
-    NODE_RETURN,
-    NODE_BREAK,
-    NODE_IDENT_LIST,
-    NODE_FUNC_PARAMETER,
-    NODE_BINARY_OP,
-    NODE_UNARY_OP,
-    NODE_IDENTIFIER,
-    NODE_TYPE_IDENTIFIER,
-    NODE_GENERIC_TYPE,
-    NODE_INT_LITERAL,
-    NODE_FLOAT_LITERAL,
-    NODE_BOOL_LITERAL,
-    NODE_STRING_LITERAL,
-    NODE_CALL,
-    NODE_ENUM_DECL,
-    NODE_ENUM_VARIANT,
-    NODE_STRUCT_DECL,
-    NODE_STRUCT_LITERAL,
-    NODE_STRUCT_FIELD,
-    NODE_LIST_LITERAL,
-    NODE_LIST_PATTERN,
-    NODE_PIPELINE,
-    NODE_PLACEHOLDER, // '_'
-    NODE_MEMBER_ACCESS, // '.'
-    NODE_RANGE,
-    NODE_LAMBDA,
+    /* 0*/ NODE_PROGRAM,
+    /* 1*/ NODE_FUNCTION,
+    /* 2*/ NODE_STMT_LIST,
+    /* 3*/ NODE_LET,
+    /* 4*/ NODE_ASSIGN,
+    /* 5*/ NODE_IF,
+    /* 6*/ NODE_FOR,
+    /* 7*/ NODE_LOOP,
+    /* 8*/ NODE_MATCH,
+    /* 9*/ NODE_MATCH_ARM,
+    /*10*/ NODE_RETURN,
+    /*11*/ NODE_BREAK,
+    /*12*/ NODE_IDENT_LIST,
+    /*13*/ NODE_FUNC_PARAMETER,
+    /*14*/ NODE_BINARY_OP,
+    /*15*/ NODE_UNARY_OP,
+    /*16*/ NODE_IDENTIFIER,
+    /*17*/ NODE_CONCRETE_TYPE,
+    /*18*/ NODE_GENERIC_TYPE,
+    /*19*/ NODE_INT_LITERAL,
+    /*20*/ NODE_FLOAT_LITERAL,
+    /*21*/ NODE_BOOL_LITERAL,
+    /*22*/ NODE_STRING_LITERAL,
+    /*23*/ NODE_CALL,
+    /*24*/ NODE_ENUM_DECL,
+    /*25*/ NODE_ENUM_VARIANT,
+    /*26*/ NODE_STRUCT_DECL,
+    /*27*/ NODE_STRUCT_LITERAL,
+    /*28*/ NODE_STRUCT_FIELD,
+    /*29*/ NODE_LIST_LITERAL,
+    /*30*/ NODE_LIST_PATTERN,
+    /*31*/ NODE_PIPELINE,
+    /*32*/ NODE_PLACEHOLDER, // '_'
+    /*33*/ NODE_MEMBER_ACCESS, // '.'
+    /*34*/ NODE_RANGE,
+    /*35*/ NODE_LAMBDA,
 } NodeType;
 
 // note: I may use a union in the future to save some memory
 typedef struct ASTNode {
     NodeType type;
-    char* lexeme;
+    int line;
+    int col;
+    const char* lexeme;
     int int_val;
     double float_val;
     int bool_val;
@@ -76,9 +78,14 @@ typedef struct ASTNode {
     struct ASTNode* return_type;
 } ASTNode;
 
+extern int yylineno;
+extern int yycolumn;
+
 static inline ASTNode* create_node(NodeType type) {
-    ASTNode* node = (ASTNode*)calloc(1, sizeof(ASTNode));
+    ASTNode* node = calloc(1, sizeof(ASTNode));
     node->type = type;
+    node->line = yylineno;
+    node->col = yycolumn;
     return node;
 }
 
@@ -123,7 +130,7 @@ static inline void print_ast(ASTNode* node, int indent) {
         "NODE_PROGRAM", "NODE_FUNCTION", "NODE_STMT_LIST", "NODE_LET", "NODE_ASSIGN",
         "NODE_IF", "NODE_FOR", "NODE_LOOP", "NODE_MATCH",
         "NODE_MATCH_ARM", "NODE_RETURN", "NODE_BREAK", "NODE_IDENT_LIST", "NODE_FUNC_PARAMETER",
-        "NODE_BINARY_OP", "NODE_UNARY_OP", "NODE_IDENTIFIER", "NODE_TYPE_IDENTIFIER", "NODE_GENERIC_TYPE",
+        "NODE_BINARY_OP", "NODE_UNARY_OP", "NODE_IDENTIFIER", "NODE_CONCRETE_TYPE", "NODE_GENERIC_TYPE",
         "NODE_INT_LITERAL", "NODE_FLOAT_LITERAL", "NODE_BOOL_LITERAL", "NODE_STRING_LITERAL", "NODE_CALL",
         "NODE_ENUM_DECL", "NODE_ENUM_VARIANT", "NODE_STRUCT_DECL", "NODE_STRUCT_LITERAL", "NODE_STRUCT_FIELD",
         "NODE_LIST_LITERAL", "NODE_LIST_PATTERN", "NODE_PIPELINE", "NODE_PLACEHOLDER", "NODE_MEMBER_ACCESS",
@@ -137,6 +144,13 @@ static inline void print_ast(ASTNode* node, int indent) {
     if (node->type == NODE_BOOL_LITERAL) printf(" val: %s", node->bool_val ? "true" : "false");
     printf("\n");
 
+    if (node->type == NODE_GENERIC_TYPE) {
+        ASTNode* garg = node->generic_args;
+        while (garg) {
+            print_ast(garg, indent);
+            garg = garg->next;
+        }
+    }
     if (node->left) print_ast(node->left, indent + 1);
     if (node->right) print_ast(node->right, indent + 1);
     if (node->cond) {
