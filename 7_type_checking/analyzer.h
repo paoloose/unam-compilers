@@ -48,7 +48,7 @@ typedef struct StructField {
 
 // Symbol table entry
 typedef struct SymbolTableEntry {
-    char* name;
+    const char* name;
     // SymbolKind kind;
     // SymbolTypeData type_data;
 
@@ -64,4 +64,4 @@ typedef struct Scope {
     struct Scope* parent;
 } Scope;
 
-void analyze_semantics(ASTNode* root);
+bool analyze_semantics(ASTNode* root);
