@@ -2,9 +2,37 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
+#include <stdarg.h>
 #include "analyzer.h"
 #include "ast.h"
 #include "debug.h"
+#include "darray.h"
+#include "builtins.h"
+
+da_cstr semantic_errors;
+
+void report_error(ASTNode* node, const char* format, ...) {
+    va_list args;
+    va_start(args, format);
+    int length = vsnprintf(NULL, 0, format, args);
+    va_end(args);
+    char* message = malloc(length + 1);
+    va_start(args, format);
+    vsnprintf(message, length + 1, format, args);
+    va_end(args);
+
+    char* final_message;
+    if (node) {
+        int len = snprintf(NULL, 0, "[%d:%d] %s", node->line, node->col, message);
+        final_message = malloc(len + 1);
+        snprintf(final_message, len + 1, "[%d:%d] %s", node->line, node->col, message);
+        free(message);
+    } else {
+        final_message = message;
+    }
+
+    da_cstr_append(&semantic_errors, final_message);
+}
 
 static void push_scope(Scope** current_scope) {
     Scope* scope = calloc(1, sizeof(Scope));
@@ -22,11 +50,15 @@ static void pop_scope(Scope** current_scope) {
 bool types_are_equal(ASTNode* type1, ASTNode* type2) {
     if (!type1 && !type2) return true;
     if (!type1 || !type2) return false;
-    UNAM_ASSERT(type1->type == NODE_TYPE_IDENTIFIER || type1->type == NODE_GENERIC_TYPE || type2->type == NODE_TYPE_IDENTIFIER || type2->type == NODE_GENERIC_TYPE, "tried to compare non type nodes");
+    UNAM_ASSERT(type1->type == NODE_CONCRETE_TYPE || type1->type == NODE_GENERIC_TYPE || type2->type == NODE_CONCRETE_TYPE || type2->type == NODE_GENERIC_TYPE, "tried to compare non type nodes");
 
     // First check lexemes
-    if (type1->lexeme == NULL && type2->lexeme != NULL) return false;
-    if (type1->lexeme != NULL && type2->lexeme == NULL) return false;
+    if (type1->lexeme == NULL && type2->lexeme != NULL) {
+        return false;
+    }
+    if (type1->lexeme != NULL && type2->lexeme == NULL) {
+        return false;
+    }
     if (type1->lexeme && type2->lexeme && strcmp(type1->lexeme, type2->lexeme) != 0) {
         return false;
     }
@@ -47,29 +79,13 @@ bool types_are_equal(ASTNode* type1, ASTNode* type2) {
     return true;
 }
 
-SymbolTableEntry* find_symbol(Scope* current_scope, char* name) {
-    extern SymbolTableEntry int_symbol;
-    extern SymbolTableEntry float_symbol;
-    extern SymbolTableEntry bool_symbol;
-    extern SymbolTableEntry string_symbol;
-    extern SymbolTableEntry list_symbol;
-
+SymbolTableEntry* find_symbol(Scope* current_scope, const char* name) {
     // builtins
-    if (strcmp(name, "int") == 0) {
-        return &int_symbol;
-    }
-    if (strcmp(name, "float") == 0) {
-        return &float_symbol;
-    }
-    if (strcmp(name, "bool") == 0) {
-        return &bool_symbol;
-    }
-    if (strcmp(name, "string") == 0) {
-        return &string_symbol;
-    }
-    if (strcmp(name, "List") == 0) {
-        return &list_symbol;
-    }
+    if (strcmp(name, "int")    == 0) return get_int_symbol();
+    if (strcmp(name, "float")  == 0) return get_float_symbol();
+    if (strcmp(name, "bool")   == 0) return get_bool_symbol();
+    if (strcmp(name, "string") == 0) return get_string_symbol();
+    if (strcmp(name, "List")   == 0) return get_list_symbol();
     Scope* s = current_scope;
     while (s) {
         SymbolTableEntry* sym = s->symbols;
@@ -102,7 +118,7 @@ SymbolTableEntry* find_nearest_function(Scope* current_scope) {
     return NULL;
 }
 
-void add_symbol_unchecked(Scope* current_scope, char* name, ASTNode* type_node) {
+void add_symbol_unchecked(Scope* current_scope, const char* name, ASTNode* type_node) {
     if (!current_scope) return;
     SymbolTableEntry* sym = calloc(1, sizeof(SymbolTableEntry));
     sym->name = ast_strdup(name);
@@ -138,18 +154,18 @@ void add_symbol_unchecked(Scope* current_scope, char* name, ASTNode* type_node) 
         case NODE_LET: {
             break;
         };
-        case NODE_TYPE_IDENTIFIER:
+        case NODE_CONCRETE_TYPE:
         case NODE_GENERIC_TYPE: {
             break;
         }
         default: {
-            UNAM_DEBUG("unreachable: node type (%d) can't be treated as symbol", type_node->type);
-            exit(69);
+            report_error(type_node, "unreachable: node type (%d) can\'t be treated as symbol", type_node->type);
+            break;
         }
     }
 }
 
-bool add_symbol_unshadowed(Scope* current_scope, char* name, ASTNode* type_node) {
+bool add_symbol_unshadowed(Scope* current_scope, const char* name, ASTNode* type_node) {
     if (!current_scope) return false;
 
     SymbolTableEntry* found_symbol = find_symbol(current_scope, name);
@@ -165,7 +181,7 @@ bool add_symbol_unshadowed(Scope* current_scope, char* name, ASTNode* type_node)
  * Succees if the symbol to add is not defined in the current scope only.
  * It may be defined in parent scopes, but shadowing will allow that!
  */
-bool add_symbol_shadowed(Scope* current_scope, char* name, ASTNode* type_node) {
+bool add_symbol_shadowed(Scope* current_scope, const char* name, ASTNode* type_node) {
     if (!current_scope) return false;
 
     SymbolTableEntry* sym = current_scope->symbols;
@@ -175,28 +191,6 @@ bool add_symbol_shadowed(Scope* current_scope, char* name, ASTNode* type_node) {
     }
 
     add_symbol_unchecked(current_scope, name, type_node);
-    return true;
-}
-
-static bool generic_args_are_valid(ASTNode* generic_args) {
-    ASTNode* start_generic_args = generic_args;
-    ASTNode* generic_arg = generic_args;
-
-    while (generic_arg) {
-        ASTNode* g = start_generic_args;
-        int duplicated = 0;
-        while (g) {
-            if (strcmp(g->lexeme, generic_arg->lexeme) == 0) {
-                duplicated++;
-            }
-            g = g->next;
-        }
-        if (duplicated > 1) {
-            UNAM_ASSERT(false, "TODO return error, duplicated field name in struct");
-            return false;
-        }
-        generic_arg = generic_arg->next;
-    }
     return true;
 }
 
@@ -214,112 +208,151 @@ void analyze_node(Scope* current_scope, ASTNode* node) {
             UNAM_DEBUG("function '%s'\n", node->lexeme);
             // The function is available in the current scope, and creates another
             if (!add_symbol_unshadowed(current_scope, node->lexeme, node)) {
-                UNAM_ASSERT(false, "TODO return error, creating a function that already exists");
+                report_error(node, "Trying to name a function '%s', but it's already defined", node->lexeme);
             }
             push_scope(&current_scope);
+
+            // For each function type argument, if any
+            ASTNode* generic_arg = node->generic_args;
+            while (generic_arg) {
+                // We add the generic type as symbol, and then analyze the node
+                add_symbol_unshadowed(current_scope, generic_arg->lexeme, generic_arg);
+                analyze_node(current_scope, generic_arg);
+                if (generic_arg->type == NODE_CONCRETE_TYPE) {
+
+                } else if (generic_arg->type == NODE_GENERIC_TYPE) {
+
+                } else {
+                    UNAM_ASSERT(false, "function type argument must be either concrete or generic type");
+                }
+                generic_arg = generic_arg->next;
+            }
+
+            // For each function argument, if any
             ASTNode* arg = node->args;
             while (arg) {
                 UNAM_ASSERT(arg->type == NODE_FUNC_PARAMETER, "function argument must have NODE_FUNC_PARAMETER type");
-                UNAM_ASSERT(arg->right != NULL && arg->right->type == NODE_IDENTIFIER, "NODE_FUNC_PARAMETER must set self->right to the IDENTIFIER");
+                UNAM_ASSERT(arg->right != NULL && (arg->right->type == NODE_CONCRETE_TYPE || arg->right->type == NODE_GENERIC_TYPE), "invalid arg->right type");
+                // First we analyze the type of the argument
+                analyze_node(current_scope, arg->right);
                 // Parameter name
-                char* parameter_name = arg->lexeme;
+                const char* parameter_name = arg->lexeme;
                 // Parameter type
-                char* type_name = arg->right->lexeme;
+                const char* type_name = arg->right->lexeme;
                 // We add the parameter to the symbols table, with the given type
-                UNAM_DEBUG(" arg: name=%s, ", parameter_name);
+                UNAM_DEBUG("  arg name=%s\n", parameter_name);
                 SymbolTableEntry* parameter_type = find_symbol(current_scope, type_name);
                 if (parameter_type == NULL) {
-                    UNAM_ASSERT(false, "TODO return error, function argument is using a type that doesn't exists");
+                    report_error(arg, "Function argument '%s' is using a type '%s' that doesn't exist", parameter_name, type_name);
+                } else {
+                    add_symbol_unchecked(current_scope, parameter_name, parameter_type->type_node);
                 }
-                // New scope, so no need to check
-                add_symbol_unchecked(current_scope, parameter_name, parameter_type->type_node);
-
                 arg = arg->next;
-                UNAM_DEBUG_PLAIN("type=%s\n", parameter_type->name);
             }
             if (node->return_type) {
-                UNAM_DEBUG("  return_type=%s\n", node->return_type->lexeme);
+                UNAM_DEBUG("  ->\n");
                 analyze_node(current_scope, node->return_type);
             }
+            UNAM_DEBUG("body ->\n");
             analyze_node(current_scope, node->body);
+            UNAM_DEBUG("<- end body\n");
             pop_scope(&current_scope);
             break;
         };
         case NODE_CALL: {
             // Normal function call
             ASTNode* func = node->left;
+            UNAM_DEBUG("call: %s\n", func->lexeme);
+            SymbolTableEntry* resolved_func = NULL;
+
             if (func->type == NODE_IDENTIFIER) {
-                // TODO: check symbol table
+                // We only validate that the function exists in the symbol table
+                resolved_func = find_symbol(current_scope, func->lexeme);
+                if (!resolved_func) {
+                    report_error(func, "Function is not defined: '%s'", func->lexeme);
+                }
+                if (resolved_func->type_node->type != NODE_FUNCTION && resolved_func->type_node->type != NODE_LAMBDA) {
+                    report_error(func, "Trying to call a non function '%s'", func->evaluates_to_type->lexeme);
+                    break;
+                }
             }
             // And in this case, we must evaluate what's on the left and make sure it evaluates to a function!
             else {
                 // We first analyze the left node so that `evaluates_to_type` gets populated
                 analyze_node(current_scope, func);
-                SymbolTableEntry* returned_type = find_symbol(current_scope, func->evaluates_to_type->lexeme);
-                if (returned_type == NULL) {
-                    UNAM_ASSERT(false, "TODO return error, call made to a non-function");
-                }
-                if (returned_type->type_node->type != NODE_FUNCTION || returned_type->type_node->type != NODE_LAMBDA) {
-                    UNAM_ASSERT(false, "TODO return error, call made to a non-function");
-                }
-                // And now that we now a function is being called, we validate its arguments!
-                ASTNode* calling_function = returned_type->type_node;
-
-                ASTNode* expected_arg = calling_function->args;
-                ASTNode* passed_arg = node->args;
-
-                int passed_args_len = 0;
-                while (expected_arg) {
-                    if (passed_arg == NULL) {
-                        UNAM_ASSERT(false, "TODO return error, expected argument, but none passed");
-                    }
-                    passed_args_len++;
-                    // Check that types of arguments match
-                    UNAM_ASSERT(expected_arg->type == NODE_FUNC_PARAMETER, "function arguments must be of type NODE_FUNC_PARAMETER");
-                    UNAM_ASSERT(expected_arg->right != NULL && expected_arg->right->type == NODE_IDENTIFIER, "NODE_FUNC_PARAMETER must set self->right to the IDENTIFIER");
-                    // TODO: get from symbols table and check if exists
-                    // TODO: note that if this function is already in the symbols table, then its type must exist
-                    analyze_node(current_scope, passed_arg);
-                    SymbolTableEntry* returned_type = find_symbol(current_scope, passed_arg->evaluates_to_type->lexeme);
-                    if (returned_type == NULL) {
-                        UNAM_ASSERT(false, "TODO return error, expected type, but it evaluates to void");
-                    }
-
-                    if (!types_are_equal(passed_arg->evaluates_to_type, expected_arg->right)) {
-                        UNAM_ASSERT(false, "TODO return error, expected type A, but passed type B");
-                    }
-                    // Then it's okay
-
-                    passed_arg = passed_arg->next;
-                    expected_arg = expected_arg->next;
-                }
-                if (passed_arg != NULL) {
-                    UNAM_ASSERT(false, "TODO return error, passing more arguments than expected");
+                resolved_func = find_symbol(current_scope, func->evaluates_to_type->lexeme);
+                if (resolved_func == NULL || (resolved_func->type_node->type != NODE_FUNCTION && resolved_func->type_node->type != NODE_LAMBDA)) {
+                    report_error(func, "Trying to call a non function '%s'", func->evaluates_to_type->lexeme);
+                    break;
                 }
             }
-            UNAM_DEBUG("NODE_CALL not implemented");
-            exit(69);
+
+            // And now that we now a function is being called, we validate its arguments!
+            ASTNode* calling_function = resolved_func->type_node;
+
+            ASTNode* expected_arg = calling_function->args;
+            ASTNode* passed_arg = node->args;
+
+            int passed_args_len = 0;
+            while (expected_arg) {
+                if (passed_arg == NULL) {
+                    report_error(node, "Expected argument, but none passed");
+                    break;
+                }
+                passed_args_len++;
+                // Check that types of arguments match
+                UNAM_ASSERT(expected_arg->type == NODE_FUNC_PARAMETER, "function arguments must be of type NODE_FUNC_PARAMETER");
+                UNAM_ASSERT(expected_arg->right, "function arguments must be typed");
+                UNAM_ASSERT(expected_arg->right->type == NODE_CONCRETE_TYPE || expected_arg->right->type == NODE_GENERIC_TYPE, "function argument must be of correct type");
+
+                // And we evaluate the passed arguments to see what type it resolves to
+                analyze_node(current_scope, passed_arg);
+
+                if (passed_arg->evaluates_to_type == NULL) {
+                    report_error(passed_arg, "Passed argument to function '%s' evalutes to void", node->lexeme);
+                    goto outer_loop;
+                }
+
+                SymbolTableEntry* returned_type = find_symbol(current_scope, passed_arg->evaluates_to_type->lexeme);
+                if (returned_type == NULL) {
+                    report_error(passed_arg, "Passed argument evaluates to void: '%s'", passed_arg->evaluates_to_type->lexeme);
+                } else if (!types_are_equal(passed_arg->evaluates_to_type, expected_arg->right)) {
+                    report_error(passed_arg, "Expected type '%s', but passed type '%s'", expected_arg->right->lexeme, passed_arg->evaluates_to_type->lexeme);
+                }
+                // Then it's okay
+                passed_arg = passed_arg->next;
+                expected_arg = expected_arg->next;
+            }
+            if (passed_arg != NULL) {
+                report_error(node, "Passing more arguments than expected");
+            }
+            outer_loop:
+            break;
         };
         case NODE_STMT_LIST: {
             UNAM_DEBUG("NODE_STMT_LIST not implemented");
             exit(69);
+            break;
         };
         case NODE_LET: {
             // First we evaluate what we got at the right side
             analyze_node(current_scope, node->right);
             ASTNode* evaluated_type_node_right = node->right->evaluates_to_type;
             SymbolTableEntry* evaluated_type_right = find_symbol(current_scope, evaluated_type_node_right->lexeme);
-            UNAM_ASSERT(evaluated_type_right != NULL, "evaluated type must exist in the symbols table");
+            if (evaluated_type_right == NULL) {
+                report_error(node->right, "Evaluated type '%s' must exist in the symbols table", evaluated_type_node_right->lexeme);
+                break;
+            }
 
             // If explicitely type, we check
             // - if exists in the symbols table
             // - if matches the right-hand-side
             if (node->left) {
-                char* type_name = node->left->lexeme;
+                const char* type_name = node->left->lexeme;
                 UNAM_DEBUG("let %s: %s\n", node->lexeme, type_name);
                 SymbolTableEntry* explicit_type = find_symbol(current_scope, type_name);
                 if (explicit_type == NULL) {
-                    UNAM_ASSERT(false, "TODO return error, used explicit type that does not exist");
+                    report_error(node->left, "Used explicit type '%s' that does not exist", type_name);
                 }
                 add_symbol_unshadowed(current_scope, node->lexeme, node->left);
             }
@@ -333,6 +366,7 @@ void analyze_node(Scope* current_scope, ASTNode* node) {
         case NODE_ASSIGN: {
             UNAM_DEBUG("NODE_ASSIGN not implemented");
             exit(69);
+            break;
             analyze_node(current_scope, node->right);
             if (node->left && node->left->lexeme) {
                 printf("Assigning variable: %s (via %s)\n", node->left->lexeme, node->lexeme);
@@ -345,45 +379,51 @@ void analyze_node(Scope* current_scope, ASTNode* node) {
         case NODE_IF: {
             UNAM_DEBUG("NODE_IF not implemented");
             exit(69);
+            break;
         };
         case NODE_FOR: {
             UNAM_DEBUG("NODE_FOR not implemented");
             exit(69);
+            break;
         };
         case NODE_LOOP: {
             UNAM_DEBUG("NODE_LOOP not implemented");
             exit(69);
+            break;
         };
         case NODE_MATCH: {
             UNAM_DEBUG("NODE_MATCH not implemented");
             exit(69);
+            break;
         };
         case NODE_MATCH_ARM: {
             UNAM_DEBUG("NODE_MATCH_ARM not implemented");
             exit(69);
+            break;
         };
         case NODE_RETURN: {
             SymbolTableEntry* bound_function = find_nearest_function(current_scope);
             if (!bound_function || !bound_function->type_node) {
-                UNAM_ASSERT(false, "TODO return error, used return but no function is in context");
+                report_error(node, "Used return but no function is in context");
+                break;
             }
             // The funciton->return_type property store its explicit return type, if specified
-            ASTNode* explicit_return_type = bound_function->type_node->return_type;
-            if (explicit_return_type) {
-                analyze_node(current_scope, explicit_return_type);
-            }
+            ASTNode* actual_return_type = bound_function->type_node->return_type;
+            UNAM_DEBUG("  return:\n");
 
             // The `return <thing>;` value
-            bool is_returning_something = node->right;
-            if (is_returning_something) {
-                analyze_node(current_scope, node->right);
-                ASTNode* evaluated_type = node->right->evaluates_to_type;
+            ASTNode* returning_type = node->right;
+            if (returning_type) {
+                analyze_node(current_scope, returning_type);
+                ASTNode* evaluated_type = returning_type->evaluates_to_type;
 
-                if (explicit_return_type) {
-                    UNAM_DEBUG("explicit_return_type=%s, returning_type=%s\n", explicit_return_type->lexeme, evaluated_type->lexeme);
+                if (actual_return_type) {
                     // Check against it
-                    if (!types_are_equal(explicit_return_type, evaluated_type)) {
-                        UNAM_ASSERT(false, "TODO return error, type of return and function signature don't match");
+                    if (!types_are_equal(actual_return_type, evaluated_type)) {
+                        report_error(
+                            returning_type, "Type of return '%s' and function signature '%s' don't match",
+                            evaluated_type->lexeme, actual_return_type->lexeme
+                        );
                     }
                 } else {
                     UNAM_DEBUG("no explicit return type found");
@@ -393,7 +433,7 @@ void analyze_node(Scope* current_scope, ASTNode* node) {
             } else {
                 // Used didn't returned something, but function was expected the opposite
                 if (bound_function->type_node->return_type != NULL) {
-                    UNAM_ASSERT(false, "TODO return error, expected to return a type, but returned nothing");
+                    report_error(node, "Expected to return a type '%s', but returned nothing", bound_function->type_node->return_type->lexeme);
                 }
             }
             break;
@@ -401,35 +441,118 @@ void analyze_node(Scope* current_scope, ASTNode* node) {
         case NODE_BREAK: {
             UNAM_DEBUG("NODE_BREAK not implemented");
             exit(69);
+            break;
         };
         case NODE_IDENT_LIST: {
             UNAM_DEBUG("NODE_IDENT_LIST not implemented");
             exit(69);
+            break;
         };
         case NODE_FUNC_PARAMETER: {
             UNAM_DEBUG("NODE_FUNC_PARAMETER not implemented");
             exit(69);
+            break;
         };
         case NODE_BINARY_OP: {
+            const char* op = node->lexeme;
+            int initial_errors = semantic_errors.length;
+            analyze_node(current_scope, node->left);
+            analyze_node(current_scope, node->right);
+            if (semantic_errors.length > initial_errors) {
+                break;
+            }
+
+            ASTNode* type_left = node->left->evaluates_to_type;
+            ASTNode* type_right = node->right->evaluates_to_type;
+
+            if (!type_left) {
+                report_error(node->left, "Left side of the operation '%s' is void", op);
+                break;
+            }
+            if (!type_right) {
+                report_error(node->left, "Right side of the operation is void");
+                break;
+            }
+
+            if (strcmp(op, "+") == 0) {
+                bool left_is_int = strcmp(type_left->lexeme, "int") == 0;
+                bool left_is_float = strcmp(type_left->lexeme, "int") == 0;
+                bool right_is_int = strcmp(type_right->lexeme, "int") == 0;
+                bool right_is_float = strcmp(type_right->lexeme, "int") == 0;
+
+                bool is_int_sum = left_is_int && right_is_int;
+                bool is_float_sum = (left_is_int && right_is_float) || (left_is_float && right_is_int);
+
+                if (!is_int_sum || !is_float_sum) {
+                    report_error(node, "Trying to add non numeric types: '%s' and '%s'", type_left->lexeme, type_right->lexeme);
+                }
+            } else if (strcmp(op, "-") == 0) {
+
+            } else if (strcmp(op, "*") == 0) {
+
+            } else if (strcmp(op, "/") == 0) {
+
+            } else if (strcmp(op, "%") == 0) {
+
+            } else if (strcmp(op, "**") == 0) {
+
+            } else if (strcmp(op, "&") == 0) {
+
+            } else if (strcmp(op, "|") == 0) {
+
+            } else if (strcmp(op, "^") == 0) {
+
+            } else if (strcmp(op, "<<") == 0) {
+
+            } else if (strcmp(op, ">>") == 0) {
+
+            } else if (strcmp(op, "==") == 0) {
+
+            } else if (strcmp(op, "!=") == 0) {
+
+            } else if (strcmp(op, "<") == 0) {
+
+            } else if (strcmp(op, ">") == 0) {
+
+            } else if (strcmp(op, "<=") == 0) {
+
+            } else if (strcmp(op, ">=") == 0) {
+
+            } else if (strcmp(op, "&&") == 0) {
+
+            } else if (strcmp(op, "||") == 0) {
+
+            } else if (strcmp(op, "[]") == 0) {
+
+            } else {
+                UNAM_ASSERT(false, "got undefined binary operator");
+            }
             UNAM_DEBUG("NODE_BINARY_OP not implemented");
             exit(69);
+            break;
         };
         case NODE_UNARY_OP: {
             UNAM_DEBUG("NODE_UNARY_OP not implemented");
             exit(69);
+            break;
         };
-        case NODE_TYPE_IDENTIFIER: {
+        case NODE_CONCRETE_TYPE: {
+            UNAM_DEBUG("  type name=%s\n", node->lexeme);
             SymbolTableEntry* found = find_symbol(current_scope, node->lexeme);
             if (!found) {
-                UNAM_ASSERT(false, "TODO return error, referenced type is not defined");
+                report_error(node, "Referenced type '%s' is not defined", node->lexeme);
             }
             // No need to check anything
             break;
         };
         case NODE_GENERIC_TYPE: {
+            UNAM_DEBUG("  type name=%s, with args:\n", node->lexeme);
             SymbolTableEntry* found = find_symbol(current_scope, node->lexeme);
             if (!found) {
-                UNAM_ASSERT(false, "TODO return error, referenced type is not defined");
+                report_error(node, "Referenced type '%s' is not defined", node->lexeme);
+            }
+            if (found->type_node->type != NODE_GENERIC_TYPE) {
+                report_error(node, "Referenced type '%s' is not generic", node->lexeme);
             }
 
             ASTNode* generic_arg = node->generic_args;
@@ -440,12 +563,18 @@ void analyze_node(Scope* current_scope, ASTNode* node) {
             break;
         };
         case NODE_IDENTIFIER: {
-            // No need to check anything
+            SymbolTableEntry* identifier = find_symbol(current_scope, node->lexeme);
+            if (!identifier) {
+                report_error(node, "Referencing identifier '%s' doesn't exists", node->lexeme);
+                break;
+            }
+            node->evaluates_to_type = identifier->type_node;
             break;
         };
         case NODE_INT_LITERAL: {
             SymbolTableEntry* int_type = find_symbol(current_scope, "int");
             UNAM_ASSERT(int_type != NULL, "int type is not defined");
+            UNAM_DEBUG("  int = %d\n", node->int_val);
             node->evaluates_to_type = int_type->type_node;
             break;
         };
@@ -470,27 +599,26 @@ void analyze_node(Scope* current_scope, ASTNode* node) {
         case NODE_ENUM_DECL: {
             UNAM_DEBUG("NODE_ENUM_DECL not implemented");
             exit(69);
+            break;
         };
         case NODE_ENUM_VARIANT: {
             UNAM_DEBUG("NODE_ENUM_VARIANT not implemented");
             exit(69);
+            break;
         };
         case NODE_STRUCT_DECL: {
-            char* struct_name = node->lexeme;
+            const char* struct_name = node->lexeme;
             UNAM_DEBUG("struct name=%s\n", struct_name);
             if (!add_symbol_unshadowed(current_scope, struct_name, node)) {
-                UNAM_ASSERT(false, "TODO return error, the type name for struct already exists");
+                report_error(node, "The type name for struct '%s' already exists", struct_name);
             }
 
             // TODO, this function generates errors in the inside, and we must move it to the outside
             push_scope(&current_scope);
-            if (!generic_args_are_valid(node->generic_args)) {
-                UNAM_ASSERT(false, "TODO return error, invalid generic args for struct");
-            }
 
             ASTNode* generic_arg = node->generic_args;
             while (generic_arg) {
-                add_symbol_unchecked(current_scope, generic_arg->lexeme, generic_arg);
+                add_symbol_unshadowed(current_scope, generic_arg->lexeme, generic_arg);
                 generic_arg = generic_arg->next;
             }
 
@@ -501,13 +629,13 @@ void analyze_node(Scope* current_scope, ASTNode* node) {
             int struct_field_idx = 0;
 
             while (struct_field) {
-                UNAM_DEBUG("  field name=%s, ", struct_field->lexeme);
+                UNAM_DEBUG("  field name=%s\n", struct_field->lexeme);
 
                 int search_struct_field_idx = 0;
                 ASTNode* sf = start_struct_field;
                 while (sf) {
                     if (strcmp(sf->lexeme, struct_field->lexeme) == 0 && struct_field_idx != search_struct_field_idx) {
-                        UNAM_ASSERT(false, "TODO return error, duplicated field name for struct");
+                        report_error(struct_field, "Duplicated field name '%s' for struct", struct_field->lexeme);
                         break;
                     }
                     search_struct_field_idx++;
@@ -515,15 +643,14 @@ void analyze_node(Scope* current_scope, ASTNode* node) {
                 }
 
                 // check for type
-                UNAM_ASSERT(struct_field->right != NULL, "NODE_FUNC_PARAMETER must set self->right to the IDENTIFIER");
+                UNAM_ASSERT(struct_field->right != NULL, "struct_field->right must not be null");
                 analyze_node(current_scope, struct_field->right);
                 ASTNode* field_type = struct_field->right;
-                char* field_type_name = field_type->lexeme;
+                const char* field_type_name = field_type->lexeme;
                 SymbolTableEntry* found = find_symbol(current_scope, field_type_name);
                 if (!found) {
-                    UNAM_ASSERT(false, "TODO return error, type for struct is not defined");
+                    report_error(struct_field->right, "Type '%s' for struct field '%s' is not defined", field_type_name, struct_field->lexeme);
                 }
-                UNAM_DEBUG_PLAIN("type=%s\n", found->name);
 
                 struct_field_idx++;
                 struct_field = struct_field->next;
@@ -535,10 +662,12 @@ void analyze_node(Scope* current_scope, ASTNode* node) {
         case NODE_STRUCT_FIELD: {
             UNAM_DEBUG("NODE_STRUCT_FIELD not implemented");
             exit(69);
+            break;
         };
         case NODE_LIST_LITERAL: {
             ASTNode* element = node->args;
             ASTNode* last_element_type = NULL;
+            UNAM_DEBUG("  list: \n");
 
             while (element) {
                 analyze_node(current_scope, element);
@@ -547,7 +676,7 @@ void analyze_node(Scope* current_scope, ASTNode* node) {
                 } else {
                     // check if this element has the same type of the rest
                     if (!types_are_equal(last_element_type, element->evaluates_to_type)) {
-                        UNAM_ASSERT(false, "TODO return error, types of elements of list are not the same");
+                        report_error(element, "Types of elements of list are not the same. Expected '%s' but found '%s'", last_element_type->lexeme, element->evaluates_to_type->lexeme);
                     }
                 }
                 element = element->next;
@@ -562,32 +691,38 @@ void analyze_node(Scope* current_scope, ASTNode* node) {
         case NODE_LIST_PATTERN: {
             UNAM_DEBUG("NODE_LIST_PATTERN not implemented");
             exit(69);
+            break;
         };
         case NODE_PIPELINE: {
             UNAM_DEBUG("NODE_PIPELINE not implemented");
             exit(69);
+            break;
         };
         case NODE_PLACEHOLDER: {
             UNAM_DEBUG("NODE_PLACEHOLDER not implemented");
             exit(69);
+            break;
         };
         case NODE_MEMBER_ACCESS: {
             UNAM_DEBUG("NODE_MEMBER_ACCESS not implemented");
             exit(69);
+            break;
         };
         case NODE_RANGE: {
             UNAM_DEBUG("NODE_RANGE not implemented");
             exit(69);
+            break;
         };
         case NODE_LAMBDA: {
             UNAM_DEBUG("NODE_LAMBDA not implemented");
             exit(69);
+            break;
             push_scope(&current_scope);
             printf("Lambda expression:\n");
             ASTNode* arg = node->args;
             while (arg) {
                 if (arg->type == NODE_FUNC_PARAMETER) {
-                    char* type_name = arg->lexeme;
+                    const char* type_name = arg->lexeme;
                     printf("  Parameter: %s : %s\n", arg->lexeme, type_name);
                     add_symbol_unshadowed(current_scope, arg->lexeme, arg->right);
                 }
@@ -609,11 +744,24 @@ void analyze_node(Scope* current_scope, ASTNode* node) {
     analyze_node(current_scope, node->next);
 }
 
-void analyze_semantics(ASTNode* root) {
+bool analyze_semantics(ASTNode* root) {
     printf("\n🪰 Starting Semantic Analysis...\n");
+    da_cstr_init(&semantic_errors, 16);
     Scope* current_scope = NULL;
     push_scope(&current_scope);
 
     analyze_node(current_scope, root);
     pop_scope(&current_scope);
+
+    bool success = true;
+    if (semantic_errors.length > 0) {
+        success = false;
+        fprintf(stderr, UNAM_RED "\nErrors:\n" UNAM_RESET);
+        for (int i = 0; i < semantic_errors.length; i++) {
+            fprintf(stderr, "  At %s\n", semantic_errors.data[i]);
+            free(semantic_errors.data[i]);
+        }
+    }
+    da_free(&semantic_errors);
+    return success;
 }
