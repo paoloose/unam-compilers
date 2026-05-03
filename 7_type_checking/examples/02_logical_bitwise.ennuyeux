@@ -1,3 +1,7 @@
+fn print<T>(what: T) {
+    // compiler implemented
+}
+
 // Example: Logical and Bitwise Operations
 fn main() {
     // Logical

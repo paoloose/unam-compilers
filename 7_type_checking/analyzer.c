@@ -611,9 +611,9 @@ void analyze_node(Scope* current_scope, ASTNode* node) {
                 break;
             }
 
-            bool operand_is_int = strcmp(operand_type->lexeme, "int");
-            bool operand_is_float = strcmp(operand_type->lexeme, "float");
-            bool operand_is_bool = strcmp(operand_type->lexeme, "bool");
+            bool operand_is_int = strcmp(operand_type->lexeme, "int") == 0;
+            bool operand_is_float = strcmp(operand_type->lexeme, "float") == 0;
+            bool operand_is_bool = strcmp(operand_type->lexeme, "bool") == 0;
 
             if (strcmp(op, "++") == 0) {
                 if (!operand_is_int && !operand_is_float) {
