@@ -216,38 +216,40 @@ void analyze_node(Scope* current_scope, ASTNode* node) {
             ASTNode* generic_arg = node->generic_args;
             while (generic_arg) {
                 // We add the generic type as symbol, and then analyze the node
+                UNAM_ASSERT(generic_arg->type == NODE_CONCRETE_TYPE, "generic arguments must be concrete types");
+                // And we promote them to generic types, as they appear in the generic type parameters list
+                generic_arg->type = NODE_GENERIC_TYPE;
                 add_symbol_unshadowed(current_scope, generic_arg->lexeme, generic_arg);
                 analyze_node(current_scope, generic_arg);
-                if (generic_arg->type == NODE_CONCRETE_TYPE) {
-
-                } else if (generic_arg->type == NODE_GENERIC_TYPE) {
-
-                } else {
-                    UNAM_ASSERT(false, "function type argument must be either concrete or generic type");
-                }
                 generic_arg = generic_arg->next;
             }
 
-            // For each function argument, if any
-            ASTNode* arg = node->args;
-            while (arg) {
-                UNAM_ASSERT(arg->type == NODE_FUNC_PARAMETER, "function argument must have NODE_FUNC_PARAMETER type");
-                UNAM_ASSERT(arg->right != NULL && (arg->right->type == NODE_CONCRETE_TYPE || arg->right->type == NODE_GENERIC_TYPE), "invalid arg->right type");
-                // First we analyze the type of the argument
-                analyze_node(current_scope, arg->right);
+            // For each function parameter, if any
+            ASTNode* param = node->args;
+            while (param) {
+                UNAM_ASSERT(param->type == NODE_FUNC_PARAMETER, "function parameter must have NODE_FUNC_PARAMETER type");
+                UNAM_ASSERT(param->right != NULL && (param->right->type == NODE_CONCRETE_TYPE || param->right->type == NODE_GENERIC_TYPE), "invalid arg->right type");
+                // First we analyze the type of the parameter
+                analyze_node(current_scope, param->right);
                 // Parameter name
-                const char* parameter_name = arg->lexeme;
+                const char* parameter_name = param->lexeme;
                 // Parameter type
-                const char* type_name = arg->right->lexeme;
+                const char* type_name = param->right->lexeme;
                 // We add the parameter to the symbols table, with the given type
                 UNAM_DEBUG("  arg name=%s\n", parameter_name);
                 SymbolTableEntry* parameter_type = find_symbol(current_scope, type_name);
-                if (parameter_type == NULL) {
-                    report_error(arg, "Function argument '%s' is using a type '%s' that doesn't exist", parameter_name, type_name);
+                if (!parameter_type || !parameter_type->type_node) {
+                    report_error(param, "Function parameter '%s' is using a type '%s' that doesn't exist", parameter_name, type_name);
                 } else {
-                    add_symbol_unchecked(current_scope, parameter_name, parameter_type->type_node);
+                    // This overrides the concrete type with a generic type, as this param is referecing a generic types in the symbol table
+                    if (parameter_type->type_node->type == NODE_GENERIC_TYPE) {
+                        param->right->type = NODE_GENERIC_TYPE;
+                    }
+                    param->evaluates_to_type = parameter_type->type_node;
+                    // We add this parameter to the current scope
+                    add_symbol_unchecked(current_scope, parameter_name, param);
                 }
-                arg = arg->next;
+                param = param->next;
             }
             if (node->return_type) {
                 UNAM_DEBUG("  ->\n");
@@ -290,20 +292,25 @@ void analyze_node(Scope* current_scope, ASTNode* node) {
             // And now that we now a function is being called, we validate its arguments!
             ASTNode* calling_function = resolved_func->type_node;
 
-            ASTNode* expected_arg = calling_function->args;
+            ASTNode* expected_param = calling_function->args;
             ASTNode* passed_arg = node->args;
 
+            da_astnodes specialized_params_types;  // generic types that are now specialized (NODE_GENERIC_TYPE)
+            da_astnodes_init(&specialized_params_types, 4);
+            da_astnodes specialized_params_values; // the actual types they have been specialized too (ANY)
+            da_astnodes_init(&specialized_params_values, 4);
+
             int passed_args_len = 0;
-            while (expected_arg) {
+            while (expected_param) {
                 if (passed_arg == NULL) {
                     report_error(node, "Expected argument, but none passed");
                     break;
                 }
                 passed_args_len++;
                 // Check that types of arguments match
-                UNAM_ASSERT(expected_arg->type == NODE_FUNC_PARAMETER, "function arguments must be of type NODE_FUNC_PARAMETER");
-                UNAM_ASSERT(expected_arg->right, "function arguments must be typed");
-                UNAM_ASSERT(expected_arg->right->type == NODE_CONCRETE_TYPE || expected_arg->right->type == NODE_GENERIC_TYPE, "function argument must be of correct type");
+                UNAM_ASSERT(expected_param->type == NODE_FUNC_PARAMETER, "function arguments must be of type NODE_FUNC_PARAMETER");
+                UNAM_ASSERT(expected_param->right, "function arguments must be typed");
+                UNAM_ASSERT(expected_param->right->type == NODE_CONCRETE_TYPE || expected_param->right->type == NODE_GENERIC_TYPE, "function argument must be of correct type");
 
                 // And we evaluate the passed arguments to see what type it resolves to
                 analyze_node(current_scope, passed_arg);
@@ -314,14 +321,33 @@ void analyze_node(Scope* current_scope, ASTNode* node) {
                 }
 
                 SymbolTableEntry* returned_type = find_symbol(current_scope, passed_arg->evaluates_to_type->lexeme);
-                if (returned_type == NULL) {
-                    report_error(passed_arg, "Passed argument evaluates to void: '%s'", passed_arg->evaluates_to_type->lexeme);
-                } else if (!types_are_equal(passed_arg->evaluates_to_type, expected_arg->right)) {
-                    report_error(passed_arg, "Expected type '%s', but passed type '%s'", expected_arg->right->lexeme, passed_arg->evaluates_to_type->lexeme);
+                UNAM_ASSERT(returned_type != NULL, "function must return a type at this point");
+                if (expected_param->right->type == NODE_GENERIC_TYPE) {
+                    bool already_specialized = false;
+                    int i = 0;
+                    for (; i < specialized_params_types.length; i++) {
+                        if (types_are_equal(specialized_params_types.data[i], expected_param->right)) {
+                            already_specialized = true;
+                        }
+                    }
+                    if (already_specialized) {
+                        ASTNode* specialized_type = specialized_params_types.data[i-1];
+                        ASTNode* specialized_to = specialized_params_values.data[i-1];
+                        if (!types_are_equal(passed_arg->evaluates_to_type, specialized_to)) {
+                            report_error(passed_arg, "Generic type '%s' has already been specialized to type '%s', but passed type '%s'", specialized_type->lexeme, specialized_to->lexeme, passed_arg->evaluates_to_type->lexeme);
+                        }
+                    } else {
+                        // register the specialization
+                        da_astnodes_append(&specialized_params_types, expected_param->right);
+                        UNAM_ASSERT(passed_arg->evaluates_to_type->type == NODE_CONCRETE_TYPE, "specialization of type arguments must be done to a CONCRETE_TYPE");
+                        da_astnodes_append(&specialized_params_values, passed_arg->evaluates_to_type);
+                    }
+                } else if (!types_are_equal(passed_arg->evaluates_to_type, expected_param->right)) {
+                    report_error(passed_arg, "Expected type '%s', but passed type '%s'", expected_param->right->lexeme, passed_arg->evaluates_to_type->lexeme);
                 }
                 // Then it's okay
                 passed_arg = passed_arg->next;
-                expected_arg = expected_arg->next;
+                expected_param = expected_param->next;
             }
             if (passed_arg != NULL) {
                 report_error(node, "Passing more arguments than expected");
@@ -483,7 +509,11 @@ void analyze_node(Scope* current_scope, ASTNode* node) {
                 bool is_int_sum = left_is_int && right_is_int;
                 bool is_float_sum = (left_is_int && right_is_float) || (left_is_float && right_is_int);
 
-                if (!is_int_sum || !is_float_sum) {
+                if (is_int_sum) {
+                    node->evaluates_to_type = find_symbol(current_scope, "int")->type_node;
+                } else if (is_float_sum) {
+                    node->evaluates_to_type = find_symbol(current_scope, "float")->type_node;
+                } else {
                     report_error(node, "Trying to add non numeric types: '%s' and '%s'", type_left->lexeme, type_right->lexeme);
                 }
             } else if (strcmp(op, "-") == 0) {
@@ -527,8 +557,6 @@ void analyze_node(Scope* current_scope, ASTNode* node) {
             } else {
                 UNAM_ASSERT(false, "got undefined binary operator");
             }
-            UNAM_DEBUG("NODE_BINARY_OP not implemented");
-            exit(69);
             break;
         };
         case NODE_UNARY_OP: {
@@ -537,28 +565,27 @@ void analyze_node(Scope* current_scope, ASTNode* node) {
             break;
         };
         case NODE_CONCRETE_TYPE: {
-            UNAM_DEBUG("  type name=%s\n", node->lexeme);
+            UNAM_DEBUG("  type name=%s", node->lexeme);
             SymbolTableEntry* found = find_symbol(current_scope, node->lexeme);
             if (!found) {
                 report_error(node, "Referenced type '%s' is not defined", node->lexeme);
             }
             // No need to check anything
-            break;
-        };
-        case NODE_GENERIC_TYPE: {
-            UNAM_DEBUG("  type name=%s, with args:\n", node->lexeme);
-            SymbolTableEntry* found = find_symbol(current_scope, node->lexeme);
-            if (!found) {
-                report_error(node, "Referenced type '%s' is not defined", node->lexeme);
-            }
-            if (found->type_node->type != NODE_GENERIC_TYPE) {
-                report_error(node, "Referenced type '%s' is not generic", node->lexeme);
-            }
-
             ASTNode* generic_arg = node->generic_args;
+            if (generic_arg) {
+                UNAM_DEBUG_PLAIN(", with args:");
+            }
             while (generic_arg) {
                 analyze_node(current_scope, generic_arg);
                 generic_arg = generic_arg->next;
+            }
+            UNAM_DEBUG_PLAIN("\n");
+            break;
+        };
+        case NODE_GENERIC_TYPE: {
+            SymbolTableEntry* found = find_symbol(current_scope, node->lexeme);
+            if (!found) {
+                report_error(node, "Referenced generic type '%s' is not defined", node->lexeme);
             }
             break;
         };

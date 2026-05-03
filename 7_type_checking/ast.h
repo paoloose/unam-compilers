@@ -33,7 +33,7 @@ typedef enum {
     /*15*/ NODE_UNARY_OP,
     /*16*/ NODE_IDENTIFIER,
     /*17*/ NODE_CONCRETE_TYPE,
-    /*18*/ NODE_GENERIC_TYPE,
+    /*18*/ NODE_GENERIC_TYPE, // generic types are determined in semantic analysis phase
     /*19*/ NODE_INT_LITERAL,
     /*20*/ NODE_FLOAT_LITERAL,
     /*21*/ NODE_BOOL_LITERAL,

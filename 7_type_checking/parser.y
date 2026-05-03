@@ -554,7 +554,7 @@ type_expr:
         $$->lexeme = ast_strdup($1);
     }
     | IDENT '<' type_params_list '>' {
-        $$ = create_node(NODE_GENERIC_TYPE);
+        $$ = create_node(NODE_CONCRETE_TYPE);
         $$->lexeme = ast_strdup($1);
         $$->generic_args = $3;
     }

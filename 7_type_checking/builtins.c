@@ -23,4 +23,4 @@ SymbolTableEntry* get_int_symbol()    { return make_builtin("int", NODE_CONCRETE
 SymbolTableEntry* get_float_symbol()  { return make_builtin("float", NODE_CONCRETE_TYPE); }
 SymbolTableEntry* get_bool_symbol()   { return make_builtin("bool", NODE_CONCRETE_TYPE); }
 SymbolTableEntry* get_string_symbol() { return make_builtin("string", NODE_CONCRETE_TYPE); }
-SymbolTableEntry* get_list_symbol()   { return make_builtin("List", NODE_GENERIC_TYPE); }
+SymbolTableEntry* get_list_symbol()   { return make_builtin("List", NODE_CONCRETE_TYPE); }
