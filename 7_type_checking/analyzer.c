@@ -79,6 +79,14 @@ bool types_are_equal(ASTNode* type1, ASTNode* type2) {
     return true;
 }
 
+bool is_builting_literal(const char* lexeme) {
+    bool is_bool = strcmp(lexeme, "bool") == 0;
+    bool is_int = strcmp(lexeme, "int") == 0;
+    bool is_float = strcmp(lexeme, "float") == 0;
+    bool is_string = strcmp(lexeme, "string") == 0;
+    return is_bool || is_int || is_float || is_string;
+}
+
 SymbolTableEntry* find_symbol(Scope* current_scope, const char* name) {
     // builtins
     if (strcmp(name, "int")    == 0) return get_int_symbol();
@@ -272,6 +280,7 @@ void analyze_node(Scope* current_scope, ASTNode* node) {
                 resolved_func = find_symbol(current_scope, func->lexeme);
                 if (!resolved_func) {
                     report_error(func, "Function is not defined: '%s'", func->lexeme);
+                    break;
                 }
                 if (resolved_func->type_node->type != NODE_FUNCTION && resolved_func->type_node->type != NODE_LAMBDA) {
                     report_error(func, "Trying to call a non function '%s'", func->evaluates_to_type->lexeme);
@@ -316,7 +325,7 @@ void analyze_node(Scope* current_scope, ASTNode* node) {
                 analyze_node(current_scope, passed_arg);
 
                 if (passed_arg->evaluates_to_type == NULL) {
-                    report_error(passed_arg, "Passed argument to function '%s' evalutes to void", node->lexeme);
+                    report_error(passed_arg, "Passed argument #%d to function '%s' evalutes to void", passed_args_len, node->lexeme);
                     goto outer_loop;
                 }
 
@@ -364,9 +373,8 @@ void analyze_node(Scope* current_scope, ASTNode* node) {
             // First we evaluate what we got at the right side
             analyze_node(current_scope, node->right);
             ASTNode* evaluated_type_node_right = node->right->evaluates_to_type;
-            SymbolTableEntry* evaluated_type_right = find_symbol(current_scope, evaluated_type_node_right->lexeme);
-            if (evaluated_type_right == NULL) {
-                report_error(node->right, "Evaluated type '%s' must exist in the symbols table", evaluated_type_node_right->lexeme);
+            if (!evaluated_type_node_right) {
+                report_error(node->right, "Trying to asign a void value to variable '%s'", node->lexeme);
                 break;
             }
 
@@ -379,13 +387,18 @@ void analyze_node(Scope* current_scope, ASTNode* node) {
                 SymbolTableEntry* explicit_type = find_symbol(current_scope, type_name);
                 if (explicit_type == NULL) {
                     report_error(node->left, "Used explicit type '%s' that does not exist", type_name);
+                    break;
+                }
+                if (!types_are_equal(explicit_type->type_node, evaluated_type_node_right)) {
+                    report_error(node->right, "Cannot bind variable: types don't match");
+                    break;
                 }
                 add_symbol_unshadowed(current_scope, node->lexeme, node->left);
             }
             else {
                 // node->left;
-                UNAM_DEBUG("let %s: (inferred %s)\n", node->lexeme, node->right->evaluates_to_type->lexeme);
-                add_symbol_unshadowed(current_scope, node->lexeme, NULL);
+                UNAM_DEBUG("let %s: (inferred %s)\n", node->lexeme, evaluated_type_node_right->lexeme);
+                add_symbol_unshadowed(current_scope, node->lexeme, evaluated_type_node_right);
             }
             break;
         };
@@ -496,15 +509,21 @@ void analyze_node(Scope* current_scope, ASTNode* node) {
                 break;
             }
             if (!type_right) {
-                report_error(node->left, "Right side of the operation is void");
+                report_error(node->right, "Right side of the operation is void");
                 break;
             }
 
             if (strcmp(op, "+") == 0) {
+                bool any_is_string = strcmp(type_left->lexeme, "string") == 0 || strcmp(type_right->lexeme, "string") == 0;
+                if (any_is_string) {
+                    // string concatenation, allow anything (for now...)
+                    node->evaluates_to_type = find_symbol(current_scope, "string")->type_node;
+                    break;
+                }
                 bool left_is_int = strcmp(type_left->lexeme, "int") == 0;
-                bool left_is_float = strcmp(type_left->lexeme, "int") == 0;
+                bool left_is_float = strcmp(type_left->lexeme, "float") == 0;
                 bool right_is_int = strcmp(type_right->lexeme, "int") == 0;
-                bool right_is_float = strcmp(type_right->lexeme, "int") == 0;
+                bool right_is_float = strcmp(type_right->lexeme, "float") == 0;
 
                 bool is_int_sum = left_is_int && right_is_int;
                 bool is_float_sum = (left_is_int && right_is_float) || (left_is_float && right_is_int);
@@ -514,54 +533,113 @@ void analyze_node(Scope* current_scope, ASTNode* node) {
                 } else if (is_float_sum) {
                     node->evaluates_to_type = find_symbol(current_scope, "float")->type_node;
                 } else {
-                    report_error(node, "Trying to add non numeric types: '%s' and '%s'", type_left->lexeme, type_right->lexeme);
+                    report_error(node, "Trying to add non-numeric types: '%s' and '%s'", type_left->lexeme, type_right->lexeme);
                 }
-            } else if (strcmp(op, "-") == 0) {
+            } else if (strcmp(op, "-") == 0 || strcmp(op, "*") == 0 || strcmp(op, "/") == 0) {
+                bool left_is_int = strcmp(type_left->lexeme, "int") == 0;
+                bool left_is_float = strcmp(type_left->lexeme, "float") == 0;
+                bool right_is_int = strcmp(type_right->lexeme, "int") == 0;
+                bool right_is_float = strcmp(type_right->lexeme, "float") == 0;
 
-            } else if (strcmp(op, "*") == 0) {
+                bool is_int_diff = left_is_int && right_is_int;
+                bool is_float_diff = (left_is_int && right_is_float) || (left_is_float && right_is_int);
 
-            } else if (strcmp(op, "/") == 0) {
+                if (is_int_diff) {
+                    node->evaluates_to_type = find_symbol(current_scope, "int")->type_node;
+                } else if (is_float_diff) {
+                    node->evaluates_to_type = find_symbol(current_scope, "float")->type_node;
+                } else {
+                    report_error(node, "Arithmetic operator %s can only be used for int types", op);
+                }
+            } else if (strcmp(op, "%") == 0 || strcmp(op, "**") == 0 || strcmp(op, "|") == 0 || strcmp(op, "&") == 0 || strcmp(op, "^") == 0 || strcmp(op, "<<") == 0 || strcmp(op, ">>") == 0) {
+                bool left_is_int = strcmp(type_left->lexeme, "int") == 0;
+                bool right_is_int = strcmp(type_right->lexeme, "int") == 0;
 
-            } else if (strcmp(op, "%") == 0) {
+                bool is_int_op = left_is_int && right_is_int;
 
-            } else if (strcmp(op, "**") == 0) {
+                if (is_int_op) {
+                    node->evaluates_to_type = find_symbol(current_scope, "int")->type_node;
+                } else {
+                    report_error(node, "Operator %s can only be used for int types", op);
+                }
+            } else if (strcmp(op, "==") == 0 || strcmp(op, "!=") == 0 || strcmp(op, "&&") == 0 || strcmp(op, "||") == 0) {
+                bool left_is_builtin = is_builting_literal(type_left->lexeme);
+                bool right_is_builtin = is_builting_literal(type_right->lexeme);
 
-            } else if (strcmp(op, "&") == 0) {
+                if (left_is_builtin && right_is_builtin) {
+                    node->evaluates_to_type = find_symbol(current_scope, "bool")->type_node;
+                } else {
+                    report_error(node, "Boolean operator %s can only be used for builtin types", op);
+                }
+            } else if (strcmp(op, "<") == 0 || strcmp(op, ">") == 0 || strcmp(op, "<=") == 0 || strcmp(op, ">=") == 0) {
+                bool left_is_int = strcmp(type_left->lexeme, "int") == 0;
+                bool left_is_float = strcmp(type_left->lexeme, "float") == 0;
+                bool right_is_int = strcmp(type_right->lexeme, "int") == 0;
+                bool right_is_float = strcmp(type_right->lexeme, "float") == 0;
 
-            } else if (strcmp(op, "|") == 0) {
+                bool is_int_div = left_is_int && right_is_int;
+                bool is_float_div = (left_is_int && right_is_float) || (left_is_float && right_is_int);
 
-            } else if (strcmp(op, "^") == 0) {
-
-            } else if (strcmp(op, "<<") == 0) {
-
-            } else if (strcmp(op, ">>") == 0) {
-
-            } else if (strcmp(op, "==") == 0) {
-
-            } else if (strcmp(op, "!=") == 0) {
-
-            } else if (strcmp(op, "<") == 0) {
-
-            } else if (strcmp(op, ">") == 0) {
-
-            } else if (strcmp(op, "<=") == 0) {
-
-            } else if (strcmp(op, ">=") == 0) {
-
-            } else if (strcmp(op, "&&") == 0) {
-
-            } else if (strcmp(op, "||") == 0) {
-
+                if (is_int_div) {
+                    node->evaluates_to_type = find_symbol(current_scope, "int")->type_node;
+                } else if (is_float_div) {
+                    node->evaluates_to_type = find_symbol(current_scope, "float")->type_node;
+                } else {
+                    report_error(node, "Trying to use comparison operator for non-numeric types: '%s' and '%s'", type_left->lexeme, type_right->lexeme);
+                }
             } else if (strcmp(op, "[]") == 0) {
+                bool left_is_list = strcmp(type_right->lexeme, "list") == 0;;
+                bool right_is_int = strcmp(type_right->lexeme, "bool") == 0;;
 
+                if (left_is_list && right_is_int) {
+                    node->evaluates_to_type = node->left->args->evaluates_to_type;
+                } else {
+                    report_error(node, "The indexing operator [] can only be used for list[integer]", op);
+                }
             } else {
                 UNAM_ASSERT(false, "got undefined binary operator");
             }
             break;
         };
         case NODE_UNARY_OP: {
-            UNAM_DEBUG("NODE_UNARY_OP not implemented");
-            exit(69);
+            const char* op = node->lexeme;
+            ASTNode* operand = node->right;
+            analyze_node(current_scope, operand);
+            ASTNode* operand_type = node->right->evaluates_to_type;
+            if (!operand_type) {
+                report_error(node->right, "Trying to apply unary operator '%s' to void type", op);
+                break;
+            }
+
+            bool operand_is_int = strcmp(operand_type->lexeme, "int");
+            bool operand_is_float = strcmp(operand_type->lexeme, "float");
+            bool operand_is_bool = strcmp(operand_type->lexeme, "bool");
+
+            if (strcmp(op, "++") == 0) {
+                if (!operand_is_int && !operand_is_float) {
+                    report_error(node, "Using ++ operator with non-numerical type");
+                }
+            } else if (strcmp(op, "--") == 0) {
+                if (!operand_is_int && !operand_is_float) {
+                    report_error(node, "Using -- operator with non-numerical type");
+                }
+            } else if (strcmp(op, "!") == 0) {
+                // TODO: boolean cast maybe?
+                if (!operand_is_bool) {
+                    report_error(node, "Using ! operator with non-bool type");
+                }
+            } else if (strcmp(op, "~") == 0) {
+                if (!operand_is_int) {
+                    report_error(node, "The ~ operator is only available for integers");
+                }
+            } else if (strcmp(op, "-") == 0) {
+                if (!operand_is_int && !operand_is_float) {
+                    report_error(node, "Using - operator with non-numerical type");
+                }
+            } else {
+                UNAM_ASSERT(false, "unknown unary operator");
+            }
+            node->evaluates_to_type = operand_type;
             break;
         };
         case NODE_CONCRETE_TYPE: {
