@@ -54,129 +54,309 @@ typedef enum {
 } NodeType;
 
 // note: I may use a union in the future to save some memory
-typedef struct ASTNode {
-    NodeType type;
+// typedef struct ASTNode {
+//     NodeType type;
+//     int line;
+//     int col;
+//     const char* lexeme;
+//     int int_val;
+//     double float_val;
+//     int bool_val;
+//     struct ASTNode* left;
+//     struct ASTNode* right;
+//     struct ASTNode* next; // for lists/sequences
+//     struct ASTNode* cond;
+//     struct ASTNode* body;
+//     struct ASTNode* else_branch;
+//     struct ASTNode* generic_args; // for generig paramters
+//     struct ASTNode* args; // for calls
+//     // Populated in the semantic analysis phase
+//     // That is, if this node evaluates to a type, then after calling `analyze_node`,
+//     // this value must've been populated
+//     struct ASTNode* evaluates_to_type;
+//     // For functions
+//     struct ASTNode* return_type;
+// } ASTNode;
+
+
+typedef struct {
     int line;
     int col;
-    const char* lexeme;
-    int int_val;
-    double float_val;
-    int bool_val;
-    struct ASTNode* left;
-    struct ASTNode* right;
-    struct ASTNode* next; // for lists/sequences
-    struct ASTNode* cond;
-    struct ASTNode* body;
-    struct ASTNode* else_branch;
-    struct ASTNode* generic_args; // for generig paramters
-    struct ASTNode* args; // for calls
+} SourceLoc;
+
+typedef struct ASTNode ASTNode;
+struct ASTNode {
+    NodeType type;
+    SourceLoc loc;
+
+    ASTNode* next;
     // Populated in the semantic analysis phase
     // That is, if this node evaluates to a type, then after calling `analyze_node`,
     // this value must've been populated
-    struct ASTNode* evaluates_to_type;
-    // For functions
-    struct ASTNode* return_type;
-} ASTNode;
+    ASTNode* evaluates_to_type;
+
+    union {
+        /* NODE_PROGRAM */
+        struct { char* name; ASTNode* body; } program;
+
+        /* NODE_FUNCTION */
+        struct {
+            char* name;
+            ASTNode* params;         /* call_args */
+            ASTNode* generic_args;   /* type params */
+            ASTNode* return_type;
+            ASTNode* body;
+        } function;
+
+        /* NODE_STMT_LIST */
+        struct { ASTNode* body; } stmt_list;
+
+        /* NODE_LET */
+        struct { char* name; ASTNode* declared_type;  ASTNode* value; } let;
+
+        /* NODE_ASSIGN */
+        struct {
+            char* op;            /* = += -= etc */
+            ASTNode* target;     /* identifier */
+            ASTNode* value;
+        } assign;
+
+        /* NODE_IF */
+        struct {
+            ASTNode* cond;
+            ASTNode* then_body;
+            ASTNode* else_body;  /* optional */
+        } if_expr;
+
+        /* NODE_FOR */
+        struct {
+            char* name;          /* loop variable */
+
+            int is_decl;         /* FOR (LET i = ...) */
+            int is_foreach;      /* FOR i IN expr */
+
+            ASTNode* init;       /* c-style init expr */
+            ASTNode* cond;       /* condition OR iterable for foreach */
+            ASTNode* step;       /* c-style increment */
+            ASTNode* body;
+            ASTNode* else_body;  /* optional */
+        } for_expr;
+
+        /* NODE_LOOP */
+        struct {
+            ASTNode* body;
+            ASTNode* else_body;
+        } loop_expr;
+
+        /* NODE_MATCH */
+        struct {
+            ASTNode* subject;
+            ASTNode* arms;
+        } match_expr;
+
+        /* NODE_MATCH_ARM */
+        struct {
+            ASTNode* pattern;
+            ASTNode* guard;      /* optional */
+            ASTNode* body;
+        } match_arm;
+
+        /* NODE_RETURN */
+        struct {
+            ASTNode* value;      /* optional */
+        } return_stmt;
+
+        /* NODE_BREAK */
+        struct {
+            ASTNode* value;      /* optional */
+        } break_stmt;
+
+        /* NODE_IDENT_LIST */
+        struct {
+            ASTNode* items;
+        } ident_list;
+
+        /* NODE_FUNC_PARAMETER */
+        struct {
+            char* name;
+            ASTNode* type_expr;
+        } func_param;
+
+        /* NODE_BINARY_OP */
+        struct {
+            char* op;
+            ASTNode* left;
+            ASTNode* right;
+        } binop;
+
+        /* NODE_UNARY_OP */
+        struct {
+            char* op;
+            ASTNode* operand;
+        } unary;
+
+        /* NODE_IDENTIFIER */
+        struct {
+            char* name;
+        } ident;
+
+        /* NODE_CONCRETE_TYPE */
+        /* NODE_GENERIC_TYPE */
+        struct {
+            const char* name;
+            ASTNode* generic_args;   /* optional */
+        } type;
+
+        // struct {
+        //     char* name;
+        // } generic_type;
+
+        /* NODE_INT_LITERAL */
+        struct {
+            int value;
+        } int_lit;
+
+        /* NODE_FLOAT_LITERAL */
+        struct {
+            double value;
+        } float_lit;
+
+        /* NODE_BOOL_LITERAL */
+        struct {
+            int value;
+        } bool_lit;
+
+        /* NODE_STRING_LITERAL */
+        struct {
+            char* value;
+        } string_lit;
+
+        /* NODE_CALL */
+        struct {
+            char* debug_name;    /* identifier or "<dynamic>" */
+            ASTNode* callee;
+            ASTNode* args;
+        } call;
+
+        /* NODE_ENUM_DECL */
+        struct {
+            char* name;
+            ASTNode* generic_args;
+            ASTNode* variants;
+        } enum_decl;
+
+        /* NODE_ENUM_VARIANT */
+        struct {
+            char* name;
+            ASTNode* payload_types;  /* optional */
+        } enum_variant;
+
+        /* NODE_STRUCT_DECL */
+        struct {
+            char* name;
+            ASTNode* generic_args;
+            ASTNode* fields;
+        } struct_decl;
+
+        /* NODE_STRUCT_LITERAL */
+        struct {
+            char* name;
+            ASTNode* generic_args;
+            ASTNode* fields;
+        } struct_lit;
+
+        /* NODE_STRUCT_FIELD */
+        struct {
+            char* name;
+            ASTNode* value;      /* expr or type_expr */
+        } struct_field;
+
+        /* NODE_LIST_LITERAL */
+        struct {
+            ASTNode* items;
+        } list_lit;
+
+        /* NODE_LIST_PATTERN */
+        struct {
+            ASTNode* items;      /* tail may contain placeholder(rest) */
+        } list_pattern;
+
+        /* NODE_PIPELINE */
+        struct {
+            ASTNode* left;
+            ASTNode* right;
+        } pipeline;
+
+        /* NODE_PLACEHOLDER */
+        struct {
+            char* name;          /* "_" or rest capture name */
+        } placeholder;
+
+        /* NODE_MEMBER_ACCESS */
+        struct {
+            char* op;            /* "." or "::" */
+            ASTNode* object;
+            ASTNode* member;
+        } member;
+
+        /* NODE_RANGE */
+        struct {
+            int inclusive;
+            ASTNode* start;
+            ASTNode* end;
+        } range;
+
+        /* NODE_LAMBDA */
+        struct {
+            ASTNode* params;
+            ASTNode* return_type;
+            ASTNode* body;
+        } lambda;
+
+    } as;
+};
 
 extern int yylineno;
-extern int yycolumn;
+extern int yylastcolumn;
 
 static inline ASTNode* create_node(NodeType type) {
-    ASTNode* node = calloc(1, sizeof(ASTNode));
+    ASTNode* node = (ASTNode*)calloc(1, sizeof(ASTNode));
     node->type = type;
-    node->line = yylineno;
-    node->col = yycolumn;
+    node->loc.line = yylineno;
+    node->loc.col = yylastcolumn;
     return node;
 }
 
 static inline ASTNode* create_leaf_id(char* lexeme) {
     ASTNode* node = create_node(NODE_IDENTIFIER);
-    node->lexeme = ast_strdup(lexeme);
+    node->as.ident.name = ast_strdup(lexeme);
     return node;
 }
 
 static inline ASTNode* create_leaf_int(int val) {
     ASTNode* node = create_node(NODE_INT_LITERAL);
-    node->int_val = val;
+    node->as.int_lit.value = val;
     return node;
 }
 
 static inline ASTNode* create_leaf_float(double val) {
     ASTNode* node = create_node(NODE_FLOAT_LITERAL);
-    node->float_val = val;
+    node->as.float_lit.value = val;
     return node;
 }
 
 static inline ASTNode* create_leaf_bool(int val) {
     ASTNode* node = create_node(NODE_BOOL_LITERAL);
-    node->bool_val = val;
+    node->as.bool_lit.value = val;
     return node;
 }
 
 static inline ASTNode* create_leaf_str(char* str) {
     ASTNode* node = create_node(NODE_STRING_LITERAL);
-    node->lexeme = ast_strdup(str);
+    node->as.string_lit.value = ast_strdup(str);
     return node;
 }
 
-#define PRINT_INDEN(indent) for (int i = 0; i <= (indent); i++) printf("  ");
+char* node_repr(ASTNode* node);
+void print_ast(ASTNode* node, int indent);
 
-static inline void print_ast(ASTNode* node, int indent) {
-    if (!node) return;
-    PRINT_INDEN(indent - 1);
-
-    // note: the order depends on the NodeType enum
-    const char* type_names[] = {
-        "NODE_PROGRAM", "NODE_FUNCTION", "NODE_STMT_LIST", "NODE_LET", "NODE_ASSIGN",
-        "NODE_IF", "NODE_FOR", "NODE_LOOP", "NODE_MATCH",
-        "NODE_MATCH_ARM", "NODE_RETURN", "NODE_BREAK", "NODE_IDENT_LIST", "NODE_FUNC_PARAMETER",
-        "NODE_BINARY_OP", "NODE_UNARY_OP", "NODE_IDENTIFIER", "NODE_CONCRETE_TYPE", "NODE_GENERIC_TYPE",
-        "NODE_INT_LITERAL", "NODE_FLOAT_LITERAL", "NODE_BOOL_LITERAL", "NODE_STRING_LITERAL", "NODE_CALL",
-        "NODE_ENUM_DECL", "NODE_ENUM_VARIANT", "NODE_STRUCT_DECL", "NODE_STRUCT_LITERAL", "NODE_STRUCT_FIELD",
-        "NODE_LIST_LITERAL", "NODE_LIST_PATTERN", "NODE_PIPELINE", "NODE_PLACEHOLDER", "NODE_MEMBER_ACCESS",
-        "NODE_RANGE", "NODE_LAMBDA"
-    };
-
-    printf("[%s]", type_names[node->type]);
-    if (node->lexeme) printf(" lexeme: %s", node->lexeme);
-    if (node->type == NODE_INT_LITERAL) printf(" val: %d", node->int_val);
-    if (node->type == NODE_FLOAT_LITERAL) printf(" val: %f", node->float_val);
-    if (node->type == NODE_BOOL_LITERAL) printf(" val: %s", node->bool_val ? "true" : "false");
-    printf("\n");
-
-    if (node->type == NODE_GENERIC_TYPE) {
-        ASTNode* garg = node->generic_args;
-        while (garg) {
-            print_ast(garg, indent);
-            garg = garg->next;
-        }
-    }
-    if (node->left) print_ast(node->left, indent + 1);
-    if (node->right) print_ast(node->right, indent + 1);
-    if (node->cond) {
-        PRINT_INDEN(indent);
-        printf("(cond)\n");
-        print_ast(node->cond, indent + 2);
-    }
-    if (node->args) {
-        PRINT_INDEN(indent);
-        printf("(args)\n");
-        print_ast(node->args, indent + 2);
-    }
-    if (node->return_type) {
-        PRINT_INDEN(indent);
-        printf("(return_type)\n");
-        print_ast(node->return_type, indent + 2);
-    }
-    if (node->body) {
-        PRINT_INDEN(indent);
-        printf("(body)\n");
-        print_ast(node->body, indent + 2);
-    }
-    if (node->else_branch) {
-        PRINT_INDEN(indent);
-        printf("(else)\n");
-        print_ast(node->else_branch, indent + 2);
-    }
-    if (node->next) print_ast(node->next, indent);
-}

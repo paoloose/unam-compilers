@@ -11,10 +11,10 @@ SymbolTableEntry* make_builtin(const char* name, NodeType type) {
     }
 
     node->type = type;
-    node->lexeme = name;
+    node->as.type.name = name;
 
     sym->name = name;
-    sym->type_node = node;
+    sym->node = node;
 
     return sym;
 }

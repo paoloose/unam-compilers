@@ -11,12 +11,15 @@
 extern int fileno(FILE *stream);
 
 int yycolumn = 1;
+int yylastcolumn = 1;
+
 #define YY_USER_ACTION \
     yylloc.first_line = yylineno; \
     yylloc.first_column = yycolumn; \
     yylloc.last_line = yylineno; \
     yylloc.last_column = yycolumn + yyleng - 1; \
-    yycolumn += yyleng;
+    yycolumn += yyleng; \
+    yylastcolumn = yylloc.last_column;
 %}
 
 %%

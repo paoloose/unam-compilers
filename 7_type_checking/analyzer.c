@@ -23,9 +23,9 @@ void report_error(ASTNode* node, const char* format, ...) {
 
     char* final_message;
     if (node) {
-        int len = snprintf(NULL, 0, "[%d:%d] %s", node->line, node->col, message);
+        int len = snprintf(NULL, 0, "[%d:%d] %s", node->loc.line, node->loc.col, message);
         final_message = malloc(len + 1);
-        snprintf(final_message, len + 1, "[%d:%d] %s", node->line, node->col, message);
+        snprintf(final_message, len + 1, "[%d:%d] %s", node->loc.line, node->loc.col, message);
         free(message);
     } else {
         final_message = message;
@@ -52,20 +52,23 @@ bool types_are_equal(ASTNode* type1, ASTNode* type2) {
     if (!type1 || !type2) return false;
     UNAM_ASSERT(type1->type == NODE_CONCRETE_TYPE || type1->type == NODE_GENERIC_TYPE || type2->type == NODE_CONCRETE_TYPE || type2->type == NODE_GENERIC_TYPE, "tried to compare non type nodes");
 
+    const char* type1_name = type1->as.type.name;
+    const char* type2_name = type2->as.type.name;
+
     // First check lexemes
-    if (type1->lexeme == NULL && type2->lexeme != NULL) {
+    if (type1_name == NULL && type2_name != NULL) {
         return false;
     }
-    if (type1->lexeme != NULL && type2->lexeme == NULL) {
+    if (type1_name != NULL && type2_name == NULL) {
         return false;
     }
-    if (type1->lexeme && type2->lexeme && strcmp(type1->lexeme, type2->lexeme) != 0) {
+    if (type1_name && type2_name && strcmp(type1_name, type2_name) != 0) {
         return false;
     }
 
     // Then check generic args
-    ASTNode* g1 = type1->generic_args;
-    ASTNode* g2 = type2->generic_args;
+    ASTNode* g1 = type1->as.type.generic_args;
+    ASTNode* g2 = type2->as.type.generic_args;
     while (g1 && g2) {
         if (!types_are_equal(g1, g2)) {
             return false;
@@ -107,13 +110,14 @@ SymbolTableEntry* find_symbol(Scope* current_scope, const char* name) {
 }
 
 SymbolTableEntry* find_nearest_function(Scope* current_scope) {
+    UNAM_ASSERT(false, "find_nearest_function shit is broken....");
     Scope* s = current_scope;
     SymbolTableEntry* last_func = NULL;
 
     while (s) {
         SymbolTableEntry* sym = s->symbols;
         while (sym) {
-            if (sym->type_node->type == NODE_FUNCTION) {
+            if (sym->node->type == NODE_FUNCTION) {
                 last_func = sym;
             }
             sym = sym->next;
@@ -130,7 +134,7 @@ void add_symbol_unchecked(Scope* current_scope, const char* name, ASTNode* type_
     if (!current_scope) return;
     SymbolTableEntry* sym = calloc(1, sizeof(SymbolTableEntry));
     sym->name = ast_strdup(name);
-    sym->type_node = type_node;
+    sym->node = type_node;
     sym->next = current_scope->symbols;
     current_scope->symbols = sym;
 
@@ -202,88 +206,94 @@ bool add_symbol_shadowed(Scope* current_scope, const char* name, ASTNode* type_n
     return true;
 }
 
+
 void analyze_node(Scope* current_scope, ASTNode* node) {
     if (!node) return;
 
     switch (node->type) {
         case NODE_PROGRAM: {
             push_scope(&current_scope);
-            analyze_node(current_scope, node->body);
+            analyze_node(current_scope, node->as.program.body);
             pop_scope(&current_scope);
             break;
         };
         case NODE_FUNCTION: {
-            UNAM_DEBUG("function '%s'\n", node->lexeme);
+            char* func_name = node->as.function.name;
+            UNAM_DEBUG("function '%s'\n", func_name);
             // The function is available in the current scope, and creates another
-            if (!add_symbol_unshadowed(current_scope, node->lexeme, node)) {
-                report_error(node, "Trying to name a function '%s', but it's already defined", node->lexeme);
+            if (!add_symbol_unshadowed(current_scope, func_name, node)) {
+                report_error(node, "Trying to name a function '%s', but it's already defined", func_name);
             }
             push_scope(&current_scope);
 
             // For each function type argument, if any
-            ASTNode* generic_arg = node->generic_args;
+            ASTNode* generic_arg = node->as.function.generic_args;
             while (generic_arg) {
                 // We add the generic type as symbol, and then analyze the node
                 UNAM_ASSERT(generic_arg->type == NODE_CONCRETE_TYPE, "generic arguments must be concrete types");
                 // And we promote them to generic types, as they appear in the generic type parameters list
                 generic_arg->type = NODE_GENERIC_TYPE;
-                add_symbol_unshadowed(current_scope, generic_arg->lexeme, generic_arg);
+                add_symbol_unshadowed(current_scope, generic_arg->as.type.name, generic_arg);
                 analyze_node(current_scope, generic_arg);
                 generic_arg = generic_arg->next;
             }
 
             // For each function parameter, if any
-            ASTNode* param = node->args;
+            ASTNode* param = node->as.function.params;
             while (param) {
+                ASTNode* param_type = param->as.func_param.type_expr;
                 UNAM_ASSERT(param->type == NODE_FUNC_PARAMETER, "function parameter must have NODE_FUNC_PARAMETER type");
-                UNAM_ASSERT(param->right != NULL && (param->right->type == NODE_CONCRETE_TYPE || param->right->type == NODE_GENERIC_TYPE), "invalid arg->right type");
+                UNAM_ASSERT(param_type != NULL && (param_type->type == NODE_CONCRETE_TYPE || param_type->type == NODE_GENERIC_TYPE), "invalid arg->right type");
                 // First we analyze the type of the parameter
-                analyze_node(current_scope, param->right);
+                analyze_node(current_scope, param_type);
                 // Parameter name
-                const char* parameter_name = param->lexeme;
+                const char* parameter_name = param->as.func_param.name;
                 // Parameter type
-                const char* type_name = param->right->lexeme;
+                const char* type_name = param_type->as.type.name;
                 // We add the parameter to the symbols table, with the given type
                 UNAM_DEBUG("  arg name=%s\n", parameter_name);
                 SymbolTableEntry* parameter_type = find_symbol(current_scope, type_name);
-                if (!parameter_type || !parameter_type->type_node) {
+                if (!parameter_type || !parameter_type->node) {
                     report_error(param, "Function parameter '%s' is using a type '%s' that doesn't exist", parameter_name, type_name);
                 } else {
                     // This overrides the concrete type with a generic type, as this param is referecing a generic types in the symbol table
-                    if (parameter_type->type_node->type == NODE_GENERIC_TYPE) {
-                        param->right->type = NODE_GENERIC_TYPE;
+                    if (parameter_type->node->type == NODE_GENERIC_TYPE) {
+                        param_type->type = NODE_GENERIC_TYPE;
                     }
-                    param->evaluates_to_type = parameter_type->type_node;
+                    param->evaluates_to_type = parameter_type->node;
                     // We add this parameter to the current scope
                     add_symbol_unchecked(current_scope, parameter_name, param);
                 }
                 param = param->next;
             }
-            if (node->return_type) {
+            ASTNode* func_return_type = node->as.function.return_type;
+            if (node->as.function.return_type) {
                 UNAM_DEBUG("  ->\n");
-                analyze_node(current_scope, node->return_type);
+                analyze_node(current_scope, func_return_type);
             }
             UNAM_DEBUG("body ->\n");
-            analyze_node(current_scope, node->body);
+            analyze_node(current_scope, node->as.function.body);
             UNAM_DEBUG("<- end body\n");
             pop_scope(&current_scope);
             break;
         };
         case NODE_CALL: {
-            // Normal function call
-            ASTNode* func = node->left;
-            UNAM_DEBUG("call: %s\n", func->lexeme);
+            // Function call
+            ASTNode* func = node->as.call.callee;
+            char* func_name = node->as.call.debug_name;
+            UNAM_DEBUG("call: %s\n", func_name);
+
             SymbolTableEntry* resolved_func = NULL;
 
+            // If we are calling an identifier, we only validate that the function exists in the symbol table
             if (func->type == NODE_IDENTIFIER) {
-                // We only validate that the function exists in the symbol table
-                resolved_func = find_symbol(current_scope, func->lexeme);
+                resolved_func = find_symbol(current_scope, func_name);
                 if (!resolved_func) {
-                    report_error(func, "Function is not defined: '%s'", func->lexeme);
+                    report_error(func, "Function is not defined: '%s'", func_name);
                     break;
                 }
-                if (resolved_func->type_node->type != NODE_FUNCTION && resolved_func->type_node->type != NODE_LAMBDA) {
-                    report_error(func, "Trying to call a non function '%s'", func->evaluates_to_type->lexeme);
+                if (resolved_func->node->type != NODE_FUNCTION && resolved_func->node->type != NODE_LAMBDA) {
+                    report_error(func, "Trying to call a non function '%s'", node_repr(func->evaluates_to_type));
                     break;
                 }
             }
@@ -291,18 +301,18 @@ void analyze_node(Scope* current_scope, ASTNode* node) {
             else {
                 // We first analyze the left node so that `evaluates_to_type` gets populated
                 analyze_node(current_scope, func);
-                resolved_func = find_symbol(current_scope, func->evaluates_to_type->lexeme);
-                if (resolved_func == NULL || (resolved_func->type_node->type != NODE_FUNCTION && resolved_func->type_node->type != NODE_LAMBDA)) {
-                    report_error(func, "Trying to call a non function '%s'", func->evaluates_to_type->lexeme);
+                resolved_func = find_symbol(current_scope, func->evaluates_to_type->as.type.name);
+                if (resolved_func == NULL || (resolved_func->node->type != NODE_FUNCTION && resolved_func->node->type != NODE_LAMBDA)) {
+                    report_error(func, "Trying to call a non function '%s'", node_repr(func->evaluates_to_type));
                     break;
                 }
             }
 
             // And now that we now a function is being called, we validate its arguments!
-            ASTNode* calling_function = resolved_func->type_node;
+            ASTNode* calling_function = resolved_func->node;
 
-            ASTNode* expected_param = calling_function->args;
-            ASTNode* passed_arg = node->args;
+            ASTNode* expected_param = calling_function->as.function.params;
+            ASTNode* passed_arg = node->as.call.args;
 
             da_astnodes specialized_params_types;  // generic types that are now specialized (NODE_GENERIC_TYPE)
             da_astnodes_init(&specialized_params_types, 4);
@@ -315,27 +325,29 @@ void analyze_node(Scope* current_scope, ASTNode* node) {
                     report_error(node, "Expected argument, but none passed");
                     break;
                 }
+                ASTNode* param_type = expected_param->as.func_param.type_expr;
                 passed_args_len++;
                 // Check that types of arguments match
                 UNAM_ASSERT(expected_param->type == NODE_FUNC_PARAMETER, "function arguments must be of type NODE_FUNC_PARAMETER");
-                UNAM_ASSERT(expected_param->right, "function arguments must be typed");
-                UNAM_ASSERT(expected_param->right->type == NODE_CONCRETE_TYPE || expected_param->right->type == NODE_GENERIC_TYPE, "function argument must be of correct type");
+                UNAM_ASSERT(expected_param->as.func_param.type_expr, "function arguments must be typed");
+                int param_node_type = param_type->type;
+                UNAM_ASSERT(param_node_type == NODE_CONCRETE_TYPE || param_node_type == NODE_GENERIC_TYPE, "function argument must be of correct type");
 
                 // And we evaluate the passed arguments to see what type it resolves to
                 analyze_node(current_scope, passed_arg);
 
                 if (passed_arg->evaluates_to_type == NULL) {
-                    report_error(passed_arg, "Passed argument #%d to function '%s' evalutes to void", passed_args_len, node->lexeme);
+                    report_error(passed_arg, "Passed argument #%d to function '%s' evalutes to void", passed_args_len, node_repr(node));
                     goto outer_loop;
                 }
 
-                SymbolTableEntry* returned_type = find_symbol(current_scope, passed_arg->evaluates_to_type->lexeme);
+                SymbolTableEntry* returned_type = find_symbol(current_scope, passed_arg->evaluates_to_type->as.type.name);
                 UNAM_ASSERT(returned_type != NULL, "function must return a type at this point");
-                if (expected_param->right->type == NODE_GENERIC_TYPE) {
+                if (param_type->type == NODE_GENERIC_TYPE) {
                     bool already_specialized = false;
                     int i = 0;
                     for (; i < specialized_params_types.length; i++) {
-                        if (types_are_equal(specialized_params_types.data[i], expected_param->right)) {
+                        if (types_are_equal(specialized_params_types.data[i], param_type)) {
                             already_specialized = true;
                         }
                     }
@@ -343,16 +355,20 @@ void analyze_node(Scope* current_scope, ASTNode* node) {
                         ASTNode* specialized_type = specialized_params_types.data[i-1];
                         ASTNode* specialized_to = specialized_params_values.data[i-1];
                         if (!types_are_equal(passed_arg->evaluates_to_type, specialized_to)) {
-                            report_error(passed_arg, "Generic type '%s' has already been specialized to type '%s', but passed type '%s'", specialized_type->lexeme, specialized_to->lexeme, passed_arg->evaluates_to_type->lexeme);
+                            report_error(
+                                passed_arg,
+                                "Generic type '%s' has already been specialized to type '%s', but passed type '%s'",
+                                node_repr(specialized_type), node_repr(specialized_to), node_repr(passed_arg->evaluates_to_type)
+                            );
                         }
                     } else {
                         // register the specialization
-                        da_astnodes_append(&specialized_params_types, expected_param->right);
+                        da_astnodes_append(&specialized_params_types, param_type);
                         UNAM_ASSERT(passed_arg->evaluates_to_type->type == NODE_CONCRETE_TYPE, "specialization of type arguments must be done to a CONCRETE_TYPE");
                         da_astnodes_append(&specialized_params_values, passed_arg->evaluates_to_type);
                     }
-                } else if (!types_are_equal(passed_arg->evaluates_to_type, expected_param->right)) {
-                    report_error(passed_arg, "Expected type '%s', but passed type '%s'", expected_param->right->lexeme, passed_arg->evaluates_to_type->lexeme);
+                } else if (!types_are_equal(passed_arg->evaluates_to_type, param_type)) {
+                    report_error(passed_arg, "Expected type '%s', but passed type '%s'", node_repr(param_type), node_repr(passed_arg->evaluates_to_type));
                 }
                 // Then it's okay
                 passed_arg = passed_arg->next;
@@ -371,53 +387,61 @@ void analyze_node(Scope* current_scope, ASTNode* node) {
         };
         case NODE_LET: {
             // First we evaluate what we got at the right side
-            analyze_node(current_scope, node->right);
-            ASTNode* evaluated_type_node_right = node->right->evaluates_to_type;
+            ASTNode* let_type = node->as.let.declared_type;
+            char* let_name = node->as.let.name;
+            ASTNode* let_value = node->as.let.value;
+            analyze_node(current_scope, let_value);
+            ASTNode* evaluated_type_node_right = let_value->evaluates_to_type;
             if (!evaluated_type_node_right) {
-                report_error(node->right, "Trying to asign a void value to variable '%s'", node->lexeme);
+                report_error(let_value, "Trying to asign a void value to variable '%s'", let_name);
                 break;
             }
 
             // If explicitely type, we check
             // - if exists in the symbols table
             // - if matches the right-hand-side
-            if (node->left) {
-                const char* type_name = node->left->lexeme;
-                UNAM_DEBUG("let %s: %s\n", node->lexeme, type_name);
+            if (let_type) {
+                const char* type_name = let_type->as.type.name;
+                UNAM_DEBUG("let %s: %s\n", let_name, type_name);
                 SymbolTableEntry* explicit_type = find_symbol(current_scope, type_name);
                 if (explicit_type == NULL) {
-                    report_error(node->left, "Used explicit type '%s' that does not exist", type_name);
+                    report_error(let_type, "Used explicit type '%s' that does not exist", type_name);
                     break;
                 }
-                if (!types_are_equal(explicit_type->type_node, evaluated_type_node_right)) {
-                    report_error(node->right, "Cannot bind variable: types don't match");
+                if (!types_are_equal(explicit_type->node, evaluated_type_node_right)) {
+                    report_error(let_value, "Cannot bind variable: types don't match");
                     break;
                 }
-                add_symbol_unshadowed(current_scope, node->lexeme, node->left);
+                add_symbol_unshadowed(current_scope, let_name, let_type);
             }
             else {
                 // node->left;
-                UNAM_DEBUG("let %s: (inferred %s)\n", node->lexeme, evaluated_type_node_right->lexeme);
-                add_symbol_unshadowed(current_scope, node->lexeme, evaluated_type_node_right);
+                UNAM_DEBUG("let %s: (inferred %s)\n", let_name, node_repr(evaluated_type_node_right));
+                add_symbol_unshadowed(current_scope, let_name, evaluated_type_node_right);
             }
             break;
         };
         case NODE_ASSIGN: {
             UNAM_DEBUG("NODE_ASSIGN not implemented");
             exit(69);
-            break;
-            analyze_node(current_scope, node->right);
-            if (node->left && node->left->lexeme) {
-                printf("Assigning variable: %s (via %s)\n", node->left->lexeme, node->lexeme);
-                if (!find_symbol(current_scope, node->left->lexeme)) {
-                    fprintf(stderr, "Error: Semantic error at line %d: Undefined variable '%s'\n", 0, node->left->lexeme);
-                }
-            }
+            // analyze_node(current_scope, node->as.assign.value);
+            // if (node->left && node->left->lexeme) {
+            //     printf("Assigning variable: %s (via %s)\n", node->left->lexeme, node->lexeme);
+            //     if (!find_symbol(current_scope, node->left->lexeme)) {
+            //         fprintf(stderr, "Error: Semantic error at line %d: Undefined variable '%s'\n", 0, node->left->lexeme);
+            //     }
+            // }
             break;
         };
         case NODE_IF: {
-            UNAM_DEBUG("NODE_IF not implemented");
-            exit(69);
+            ASTNode* if_cond = node->as.if_expr.cond;
+            analyze_node(current_scope, if_cond);
+            ASTNode* condition_type = if_cond->evaluates_to_type;
+            if (strcmp(condition_type->as.type.name, "bool") != 0) {
+                report_error(if_cond, "if condition must evaluate to a bool");
+            }
+            analyze_node(current_scope, node->as.if_expr.then_body);
+            analyze_node(current_scope, node->as.if_expr.else_body);
             break;
         };
         case NODE_FOR: {
@@ -442,16 +466,16 @@ void analyze_node(Scope* current_scope, ASTNode* node) {
         };
         case NODE_RETURN: {
             SymbolTableEntry* bound_function = find_nearest_function(current_scope);
-            if (!bound_function || !bound_function->type_node) {
+            if (!bound_function || !bound_function->node) {
                 report_error(node, "Used return but no function is in context");
                 break;
             }
             // The funciton->return_type property store its explicit return type, if specified
-            ASTNode* actual_return_type = bound_function->type_node->return_type;
+            ASTNode* actual_return_type = bound_function->node->as.function.return_type;
             UNAM_DEBUG("  return:\n");
 
             // The `return <thing>;` value
-            ASTNode* returning_type = node->right;
+            ASTNode* returning_type = node->as.return_stmt.value;
             if (returning_type) {
                 analyze_node(current_scope, returning_type);
                 ASTNode* evaluated_type = returning_type->evaluates_to_type;
@@ -461,18 +485,18 @@ void analyze_node(Scope* current_scope, ASTNode* node) {
                     if (!types_are_equal(actual_return_type, evaluated_type)) {
                         report_error(
                             returning_type, "Type of return '%s' and function signature '%s' don't match",
-                            evaluated_type->lexeme, actual_return_type->lexeme
+                            node_repr(evaluated_type), node_repr(actual_return_type)
                         );
                     }
                 } else {
                     UNAM_DEBUG("no explicit return type found");
                     // Function has no return type, so try to infer it by mutating the function node
-                    bound_function->type_node->return_type = evaluated_type;
+                    bound_function->node->as.function.return_type = evaluated_type;
                 }
             } else {
                 // Used didn't returned something, but function was expected the opposite
-                if (bound_function->type_node->return_type != NULL) {
-                    report_error(node, "Expected to return a type '%s', but returned nothing", bound_function->type_node->return_type->lexeme);
+                if (actual_return_type != NULL) {
+                    report_error(node, "Expected to return a type '%s', but returned nothing", node_repr(actual_return_type));
                 }
             }
             break;
@@ -493,106 +517,108 @@ void analyze_node(Scope* current_scope, ASTNode* node) {
             break;
         };
         case NODE_BINARY_OP: {
-            const char* op = node->lexeme;
+            const char* op = node->as.binop.op;
             int initial_errors = semantic_errors.length;
-            analyze_node(current_scope, node->left);
-            analyze_node(current_scope, node->right);
+            analyze_node(current_scope, node->as.binop.left);
+            analyze_node(current_scope, node->as.binop.right);
             if (semantic_errors.length > initial_errors) {
                 break;
             }
 
-            ASTNode* type_left = node->left->evaluates_to_type;
-            ASTNode* type_right = node->right->evaluates_to_type;
+            ASTNode* type_left = node->as.binop.left->evaluates_to_type;
+            ASTNode* type_right = node->as.binop.right->evaluates_to_type;
 
             if (!type_left) {
-                report_error(node->left, "Left side of the operation '%s' is void", op);
+                report_error(node->as.binop.left, "Left side of the operation '%s' is void", op);
                 break;
             }
             if (!type_right) {
-                report_error(node->right, "Right side of the operation is void");
+                report_error(node->as.binop.right, "Right side of the operation is void");
                 break;
             }
 
+            const char* type_left_name = type_left->as.type.name;
+            const char* type_right_name = type_left->as.type.name;
+
             if (strcmp(op, "+") == 0) {
-                bool any_is_string = strcmp(type_left->lexeme, "string") == 0 || strcmp(type_right->lexeme, "string") == 0;
+                bool any_is_string = strcmp(type_left_name, "string") == 0 || strcmp(type_right_name, "string") == 0;
                 if (any_is_string) {
                     // string concatenation, allow anything (for now...)
-                    node->evaluates_to_type = find_symbol(current_scope, "string")->type_node;
+                    node->evaluates_to_type = find_symbol(current_scope, "string")->node;
                     break;
                 }
-                bool left_is_int = strcmp(type_left->lexeme, "int") == 0;
-                bool left_is_float = strcmp(type_left->lexeme, "float") == 0;
-                bool right_is_int = strcmp(type_right->lexeme, "int") == 0;
-                bool right_is_float = strcmp(type_right->lexeme, "float") == 0;
+                bool left_is_int = strcmp(type_left_name, "int") == 0;
+                bool left_is_float = strcmp(type_left_name, "float") == 0;
+                bool right_is_int = strcmp(type_right_name, "int") == 0;
+                bool right_is_float = strcmp(type_right_name, "float") == 0;
 
                 bool is_int_sum = left_is_int && right_is_int;
                 bool is_float_sum = (left_is_int && right_is_float) || (left_is_float && right_is_int);
 
                 if (is_int_sum) {
-                    node->evaluates_to_type = find_symbol(current_scope, "int")->type_node;
+                    node->evaluates_to_type = find_symbol(current_scope, "int")->node;
                 } else if (is_float_sum) {
-                    node->evaluates_to_type = find_symbol(current_scope, "float")->type_node;
+                    node->evaluates_to_type = find_symbol(current_scope, "float")->node;
                 } else {
-                    report_error(node, "Trying to add non-numeric types: '%s' and '%s'", type_left->lexeme, type_right->lexeme);
+                    report_error(node, "Trying to add non-numeric types: '%s' and '%s'", type_left_name, type_right_name);
                 }
             } else if (strcmp(op, "-") == 0 || strcmp(op, "*") == 0 || strcmp(op, "/") == 0) {
-                bool left_is_int = strcmp(type_left->lexeme, "int") == 0;
-                bool left_is_float = strcmp(type_left->lexeme, "float") == 0;
-                bool right_is_int = strcmp(type_right->lexeme, "int") == 0;
-                bool right_is_float = strcmp(type_right->lexeme, "float") == 0;
+                bool left_is_int = strcmp(type_left_name, "int") == 0;
+                bool left_is_float = strcmp(type_left_name, "float") == 0;
+                bool right_is_int = strcmp(type_right_name, "int") == 0;
+                bool right_is_float = strcmp(type_right_name, "float") == 0;
 
                 bool is_int_diff = left_is_int && right_is_int;
                 bool is_float_diff = (left_is_int && right_is_float) || (left_is_float && right_is_int);
 
                 if (is_int_diff) {
-                    node->evaluates_to_type = find_symbol(current_scope, "int")->type_node;
+                    node->evaluates_to_type = find_symbol(current_scope, "int")->node;
                 } else if (is_float_diff) {
-                    node->evaluates_to_type = find_symbol(current_scope, "float")->type_node;
+                    node->evaluates_to_type = find_symbol(current_scope, "float")->node;
                 } else {
                     report_error(node, "Arithmetic operator %s can only be used for int types", op);
                 }
             } else if (strcmp(op, "%") == 0 || strcmp(op, "**") == 0 || strcmp(op, "|") == 0 || strcmp(op, "&") == 0 || strcmp(op, "^") == 0 || strcmp(op, "<<") == 0 || strcmp(op, ">>") == 0) {
-                bool left_is_int = strcmp(type_left->lexeme, "int") == 0;
-                bool right_is_int = strcmp(type_right->lexeme, "int") == 0;
+                bool left_is_int = strcmp(type_left_name, "int") == 0;
+                bool right_is_int = strcmp(type_right_name, "int") == 0;
 
                 bool is_int_op = left_is_int && right_is_int;
 
                 if (is_int_op) {
-                    node->evaluates_to_type = find_symbol(current_scope, "int")->type_node;
+                    node->evaluates_to_type = find_symbol(current_scope, "int")->node;
                 } else {
                     report_error(node, "Operator %s can only be used for int types", op);
                 }
             } else if (strcmp(op, "==") == 0 || strcmp(op, "!=") == 0 || strcmp(op, "&&") == 0 || strcmp(op, "||") == 0) {
-                bool left_is_builtin = is_builting_literal(type_left->lexeme);
-                bool right_is_builtin = is_builting_literal(type_right->lexeme);
+                bool left_is_builtin = is_builting_literal(type_left_name);
+                bool right_is_builtin = is_builting_literal(type_right_name);
 
                 if (left_is_builtin && right_is_builtin) {
-                    node->evaluates_to_type = find_symbol(current_scope, "bool")->type_node;
+                    node->evaluates_to_type = find_symbol(current_scope, "bool")->node;
                 } else {
                     report_error(node, "Boolean operator %s can only be used for builtin types", op);
                 }
             } else if (strcmp(op, "<") == 0 || strcmp(op, ">") == 0 || strcmp(op, "<=") == 0 || strcmp(op, ">=") == 0) {
-                bool left_is_int = strcmp(type_left->lexeme, "int") == 0;
-                bool left_is_float = strcmp(type_left->lexeme, "float") == 0;
-                bool right_is_int = strcmp(type_right->lexeme, "int") == 0;
-                bool right_is_float = strcmp(type_right->lexeme, "float") == 0;
+                bool left_is_int = strcmp(type_left_name, "int") == 0;
+                bool left_is_float = strcmp(type_left_name, "float") == 0;
+                bool right_is_int = strcmp(type_right_name, "int") == 0;
+                bool right_is_float = strcmp(type_right_name, "float") == 0;
 
-                bool is_int_div = left_is_int && right_is_int;
-                bool is_float_div = (left_is_int && right_is_float) || (left_is_float && right_is_int);
-
-                if (is_int_div) {
-                    node->evaluates_to_type = find_symbol(current_scope, "int")->type_node;
-                } else if (is_float_div) {
-                    node->evaluates_to_type = find_symbol(current_scope, "float")->type_node;
+                if (left_is_int || left_is_float || right_is_int || right_is_float) {
+                    // ok
                 } else {
-                    report_error(node, "Trying to use comparison operator for non-numeric types: '%s' and '%s'", type_left->lexeme, type_right->lexeme);
+                    report_error(node, "Comparison operator %s must only be used for numeric types", op);
                 }
+                node->evaluates_to_type = find_symbol(current_scope, "bool")->node;
+
             } else if (strcmp(op, "[]") == 0) {
-                bool left_is_list = strcmp(type_right->lexeme, "list") == 0;;
-                bool right_is_int = strcmp(type_right->lexeme, "bool") == 0;;
+                bool left_is_list = strcmp(type_right_name, "list") == 0;;
+                bool right_is_int = strcmp(type_right_name, "bool") == 0;;
 
                 if (left_is_list && right_is_int) {
-                    node->evaluates_to_type = node->left->args->evaluates_to_type;
+                    // And the result of this index access is the first generic argument of what we assume is a list
+                    UNAM_ASSERT(type_left->as.type.generic_args->type, "function from index access operator must have a generic type");
+                    node->evaluates_to_type = type_left->as.type.generic_args;
                 } else {
                     report_error(node, "The indexing operator [] can only be used for list[integer]", op);
                 }
@@ -602,18 +628,20 @@ void analyze_node(Scope* current_scope, ASTNode* node) {
             break;
         };
         case NODE_UNARY_OP: {
-            const char* op = node->lexeme;
-            ASTNode* operand = node->right;
+            const char* op = node->as.unary.op;
+            ASTNode* operand = node->as.unary.operand;
             analyze_node(current_scope, operand);
-            ASTNode* operand_type = node->right->evaluates_to_type;
+            ASTNode* operand_type = operand->evaluates_to_type;
             if (!operand_type) {
-                report_error(node->right, "Trying to apply unary operator '%s' to void type", op);
+                report_error(operand, "Trying to apply unary operator '%s' to void type", op);
                 break;
             }
 
-            bool operand_is_int = strcmp(operand_type->lexeme, "int") == 0;
-            bool operand_is_float = strcmp(operand_type->lexeme, "float") == 0;
-            bool operand_is_bool = strcmp(operand_type->lexeme, "bool") == 0;
+            const char* operand_type_name = operand_type->as.type.name;
+
+            bool operand_is_int = strcmp(operand_type_name, "int") == 0;
+            bool operand_is_float = strcmp(operand_type_name, "float") == 0;
+            bool operand_is_bool = strcmp(operand_type_name, "bool") == 0;
 
             if (strcmp(op, "++") == 0) {
                 if (!operand_is_int && !operand_is_float) {
@@ -643,13 +671,13 @@ void analyze_node(Scope* current_scope, ASTNode* node) {
             break;
         };
         case NODE_CONCRETE_TYPE: {
-            UNAM_DEBUG("  type name=%s", node->lexeme);
-            SymbolTableEntry* found = find_symbol(current_scope, node->lexeme);
+            UNAM_DEBUG("  type name=%s", node_repr(node));
+            SymbolTableEntry* found = find_symbol(current_scope, node->as.type.name);
             if (!found) {
-                report_error(node, "Referenced type '%s' is not defined", node->lexeme);
+                report_error(node, "Referenced type '%s' is not defined", node_repr(node));
             }
             // No need to check anything
-            ASTNode* generic_arg = node->generic_args;
+            ASTNode* generic_arg = node->as.type.generic_args;
             if (generic_arg) {
                 UNAM_DEBUG_PLAIN(", with args:");
             }
@@ -661,44 +689,44 @@ void analyze_node(Scope* current_scope, ASTNode* node) {
             break;
         };
         case NODE_GENERIC_TYPE: {
-            SymbolTableEntry* found = find_symbol(current_scope, node->lexeme);
+            SymbolTableEntry* found = find_symbol(current_scope, node_repr(node));
             if (!found) {
-                report_error(node, "Referenced generic type '%s' is not defined", node->lexeme);
+                report_error(node, "Referenced generic type '%s' is not defined", node_repr(node));
             }
             break;
         };
         case NODE_IDENTIFIER: {
-            SymbolTableEntry* identifier = find_symbol(current_scope, node->lexeme);
+            SymbolTableEntry* identifier = find_symbol(current_scope, node_repr(node));
             if (!identifier) {
-                report_error(node, "Referencing identifier '%s' doesn't exists", node->lexeme);
+                report_error(node, "Referencing identifier '%s' doesn't exists", node_repr(node));
                 break;
             }
-            node->evaluates_to_type = identifier->type_node;
+            node->evaluates_to_type = identifier->node;
             break;
         };
         case NODE_INT_LITERAL: {
             SymbolTableEntry* int_type = find_symbol(current_scope, "int");
             UNAM_ASSERT(int_type != NULL, "int type is not defined");
-            UNAM_DEBUG("  int = %d\n", node->int_val);
-            node->evaluates_to_type = int_type->type_node;
+            UNAM_DEBUG("  int = %d\n", node->as.int_lit.value);
+            node->evaluates_to_type = int_type->node;
             break;
         };
         case NODE_FLOAT_LITERAL: {
             SymbolTableEntry* float_type = find_symbol(current_scope, "float");
             UNAM_ASSERT(float_type != NULL, "float type is not defined");
-            node->evaluates_to_type = float_type->type_node;
+            node->evaluates_to_type = float_type->node;
             break;
         };
         case NODE_BOOL_LITERAL: {
             SymbolTableEntry* bool_type = find_symbol(current_scope, "bool");
             UNAM_ASSERT(bool_type != NULL, "bool type is not defined");
-            node->evaluates_to_type = bool_type->type_node;
+            node->evaluates_to_type = bool_type->node;
             break;
         };
         case NODE_STRING_LITERAL: {
             SymbolTableEntry* string_type = find_symbol(current_scope, "string");
             UNAM_ASSERT(string_type != NULL, "string type is not defined");
-            node->evaluates_to_type = string_type->type_node;
+            node->evaluates_to_type = string_type->node;
             break;
         };
         case NODE_ENUM_DECL: {
@@ -712,7 +740,7 @@ void analyze_node(Scope* current_scope, ASTNode* node) {
             break;
         };
         case NODE_STRUCT_DECL: {
-            const char* struct_name = node->lexeme;
+            const char* struct_name = node->as.struct_decl.name;
             UNAM_DEBUG("struct name=%s\n", struct_name);
             if (!add_symbol_unshadowed(current_scope, struct_name, node)) {
                 report_error(node, "The type name for struct '%s' already exists", struct_name);
@@ -721,26 +749,26 @@ void analyze_node(Scope* current_scope, ASTNode* node) {
             // TODO, this function generates errors in the inside, and we must move it to the outside
             push_scope(&current_scope);
 
-            ASTNode* generic_arg = node->generic_args;
+            ASTNode* generic_arg = node->as.struct_decl.generic_args;
             while (generic_arg) {
-                add_symbol_unshadowed(current_scope, generic_arg->lexeme, generic_arg);
+                add_symbol_unshadowed(current_scope, generic_arg->as.type.name, generic_arg);
                 generic_arg = generic_arg->next;
             }
 
             // Check for struct fields
             // We only check that struct field names are not repeated and their types exists
-            ASTNode* start_struct_field = node->args;
-            ASTNode* struct_field = node->args;
+            ASTNode* start_struct_field = node->as.struct_decl.fields;
+            ASTNode* struct_field = node->as.struct_decl.fields;
             int struct_field_idx = 0;
 
             while (struct_field) {
-                UNAM_DEBUG("  field name=%s\n", struct_field->lexeme);
+                UNAM_DEBUG("  field name=%s\n", node_repr(struct_field));
 
                 int search_struct_field_idx = 0;
                 ASTNode* sf = start_struct_field;
                 while (sf) {
-                    if (strcmp(sf->lexeme, struct_field->lexeme) == 0 && struct_field_idx != search_struct_field_idx) {
-                        report_error(struct_field, "Duplicated field name '%s' for struct", struct_field->lexeme);
+                    if (strcmp(sf->as.struct_field.name, struct_field->as.struct_field.name) == 0 && struct_field_idx != search_struct_field_idx) {
+                        report_error(struct_field, "Duplicated field name '%s' for struct", node_repr(struct_field));
                         break;
                     }
                     search_struct_field_idx++;
@@ -748,13 +776,13 @@ void analyze_node(Scope* current_scope, ASTNode* node) {
                 }
 
                 // check for type
-                UNAM_ASSERT(struct_field->right != NULL, "struct_field->right must not be null");
-                analyze_node(current_scope, struct_field->right);
-                ASTNode* field_type = struct_field->right;
-                const char* field_type_name = field_type->lexeme;
+                UNAM_ASSERT(struct_field->as.struct_field.value != NULL, "struct_field->right must not be null");
+                analyze_node(current_scope, struct_field->as.struct_field.value);
+                ASTNode* field_type = struct_field->as.struct_field.value;
+                const char* field_type_name = field_type->as.type.name;
                 SymbolTableEntry* found = find_symbol(current_scope, field_type_name);
                 if (!found) {
-                    report_error(struct_field->right, "Type '%s' for struct field '%s' is not defined", field_type_name, struct_field->lexeme);
+                    report_error(struct_field, "Type '%s' for struct field '%s' is not defined", field_type_name, node_repr(struct_field));
                 }
 
                 struct_field_idx++;
@@ -770,7 +798,7 @@ void analyze_node(Scope* current_scope, ASTNode* node) {
             break;
         };
         case NODE_LIST_LITERAL: {
-            ASTNode* element = node->args;
+            ASTNode* element = node->as.list_lit.items;
             ASTNode* last_element_type = NULL;
             UNAM_DEBUG("  list: \n");
 
@@ -781,7 +809,11 @@ void analyze_node(Scope* current_scope, ASTNode* node) {
                 } else {
                     // check if this element has the same type of the rest
                     if (!types_are_equal(last_element_type, element->evaluates_to_type)) {
-                        report_error(element, "Types of elements of list are not the same. Expected '%s' but found '%s'", last_element_type->lexeme, element->evaluates_to_type->lexeme);
+                        report_error(
+                            element,
+                            "Types of elements of list are not the same. Expected '%s' but found '%s'",
+                            node_repr(last_element_type), node_repr(element->evaluates_to_type)
+                        );
                     }
                 }
                 element = element->next;
@@ -789,8 +821,8 @@ void analyze_node(Scope* current_scope, ASTNode* node) {
 
             SymbolTableEntry* list_type = find_symbol(current_scope, "List");
             UNAM_ASSERT(list_type != NULL, "List type is not defined");
-            node->evaluates_to_type = list_type->type_node;
-            node->evaluates_to_type->generic_args = last_element_type;
+            node->evaluates_to_type = list_type->node;
+            node->evaluates_to_type->as.type.generic_args = last_element_type;
             break;
         };
         case NODE_LIST_PATTERN: {
@@ -824,19 +856,19 @@ void analyze_node(Scope* current_scope, ASTNode* node) {
             break;
             push_scope(&current_scope);
             printf("Lambda expression:\n");
-            ASTNode* arg = node->args;
+            ASTNode* arg = node->as.lambda.params;
             while (arg) {
                 if (arg->type == NODE_FUNC_PARAMETER) {
-                    const char* type_name = arg->lexeme;
-                    printf("  Parameter: %s : %s\n", arg->lexeme, type_name);
-                    add_symbol_unshadowed(current_scope, arg->lexeme, arg->right);
+                    const char* type_name = arg->as.func_param.name;
+                    printf("  Parameter: %s : %s\n", node_repr(arg), type_name);
+                    add_symbol_unshadowed(current_scope, node_repr(arg), arg->as.func_param.type_expr);
                 }
                 else {
-                    add_symbol_unshadowed(current_scope, arg->lexeme, NULL);
+                    add_symbol_unshadowed(current_scope, node_repr(arg), NULL);
                 }
                 arg = arg->next;
             }
-            analyze_node(current_scope, node->body);
+            analyze_node(current_scope, node->as.lambda.body);
             pop_scope(&current_scope);
             break;
         };

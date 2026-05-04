@@ -67,8 +67,8 @@ ASTNode* root;
 program:
     definition_list {
         $$ = create_node(NODE_PROGRAM);
-        $$->lexeme = "__main__";
-        $$->body = $1;
+        $$->as.program.name = ast_strdup("__main__");
+        $$->as.program.body = $1;
         root = $$;
     }
     | /* empty */ { root = NULL; }
@@ -95,18 +95,18 @@ definition:
 function_def:
     FN IDENT '(' call_args ')' return_type_opt '{' block_body '}' {
         $$ = create_node(NODE_FUNCTION);
-        $$->lexeme = ast_strdup($2);
-        $$->args = $4;
-        $$->return_type = $6;
-        $$->body = $8;
+        $$->as.function.name = ast_strdup($2);
+        $$->as.function.params = $4;
+        $$->as.function.return_type = $6;
+        $$->as.function.body = $8;
     }
     | FN IDENT '<' type_params_list '>' '(' call_args ')' return_type_opt '{' block_body '}' {
         $$ = create_node(NODE_FUNCTION);
-        $$->lexeme = ast_strdup($2);
-        $$->args = $7;
-        $$->generic_args = $4;
-        $$->return_type = $9;
-        $$->body = $11;
+        $$->as.function.name = ast_strdup($2);
+        $$->as.function.params = $7;
+        $$->as.function.generic_args = $4;
+        $$->as.function.return_type = $9;
+        $$->as.function.body = $11;
     }
 
 return_type_opt:
@@ -117,14 +117,14 @@ return_type_opt:
 enum_def:
     ENUM IDENT '{' enum_variants '}' {
         $$ = create_node(NODE_ENUM_DECL);
-        $$->lexeme = ast_strdup($2);
-        $$->args = $4;
+        $$->as.enum_decl.name = ast_strdup($2);
+        $$->as.enum_decl.variants = $4;
     }
     | ENUM IDENT '<' type_params_list '>' '{' enum_variants '}' {
         $$ = create_node(NODE_ENUM_DECL);
-        $$->lexeme = ast_strdup($2);
-        $$->generic_args = $4;
-        $$->args = $7;
+        $$->as.enum_decl.name = ast_strdup($2);
+        $$->as.enum_decl.generic_args = $4;
+        $$->as.enum_decl.variants = $7;
     }
     ;
 
@@ -141,26 +141,26 @@ enum_variants:
 enum_variant:
     IDENT ';' {
         $$ = create_node(NODE_ENUM_VARIANT);
-        $$->lexeme = ast_strdup($1);
+        $$->as.enum_variant.name = ast_strdup($1);
     }
     | IDENT '(' type_params_list ')' ';' {
         $$ = create_node(NODE_ENUM_VARIANT);
-        $$->lexeme = ast_strdup($1);
-        $$->args = $3;
+        $$->as.enum_variant.name = ast_strdup($1);
+        $$->as.enum_variant.payload_types = $3;
     }
     ;
 
 struct_def:
     STRUCT IDENT '{' struct_fields '}' {
         $$ = create_node(NODE_STRUCT_DECL);
-        $$->lexeme = ast_strdup($2);
-        $$->args = $4;
+        $$->as.enum_decl.name = ast_strdup($2);
+        $$->as.enum_decl.variants = $4;
     }
     | STRUCT IDENT '<' type_params_list '>' '{' struct_fields '}' {
         $$ = create_node(NODE_STRUCT_DECL);
-        $$->lexeme = ast_strdup($2);
-        $$->generic_args = $4;
-        $$->args = $7;
+        $$->as.enum_decl.name = ast_strdup($2);
+        $$->as.enum_decl.generic_args = $4;
+        $$->as.enum_decl.variants = $7;
     }
     ;
 
@@ -177,8 +177,8 @@ struct_fields:
 struct_field:
     IDENT ':' type_expr ';' {
         $$ = create_node(NODE_STRUCT_FIELD);
-        $$->lexeme = ast_strdup($1);
-        $$->right = $3;
+        $$->as.struct_field.name = ast_strdup($1);
+        $$->as.struct_field.value = $3;
     }
     ;
 
@@ -189,13 +189,13 @@ block_body:
         ASTNode* n = $1;
         while(n->next) n = n->next;
         ASTNode* ret_node = create_node(NODE_RETURN);
-        ret_node->right = $2;
+        ret_node->as.return_stmt.value = $2;
         n->next = ret_node;
         $$ = $1;
     }
     | expr {
         ASTNode* ret_node = create_node(NODE_RETURN);
-        ret_node->right = $1;
+        ret_node->as.return_stmt.value = $1;
         $$ = ret_node;
     }
     ;
@@ -214,25 +214,25 @@ stmt:
     expr ';' { $$ = $1; }
     | LET IDENT '=' expr ';' {
         $$ = create_node(NODE_LET);
-        $$->lexeme = ast_strdup($2);
-        $$->right = $4;
+        $$->as.let.name = ast_strdup($2);
+        $$->as.let.value = $4;
     }
     | LET IDENT ':' type_expr '=' expr ';' {
         $$ = create_node(NODE_LET);
-        $$->lexeme = ast_strdup($2);
-        $$->left = $4;
-        $$->right = $6;
+        $$->as.let.name = ast_strdup($2);
+        $$->as.let.declared_type = $4;
+        $$->as.let.value = $6;
     }
     | RETURN expr ';' {
         $$ = create_node(NODE_RETURN);
-        $$->right = $2;
+        $$->as.return_stmt.value = $2;
     }
     | RETURN ';' {
         $$ = create_node(NODE_RETURN);
     }
     | BREAK expr ';' {
         $$ = create_node(NODE_BREAK);
-        $$->right = $2;
+        $$->as.break_stmt.value = $2;
     }
     | BREAK ';' {
         $$ = create_node(NODE_BREAK);
@@ -248,131 +248,132 @@ expr:
     | '_' { $$ = create_node(NODE_PLACEHOLDER); }
     | IDENT '=' expr {
         $$ = create_node(NODE_ASSIGN);
-        $$->lexeme = ast_strdup("=");
-        $$->left = create_leaf_id($1);
-        $$->right = $3;
+        $$->as.assign.op = ast_strdup("=");
+        $$->as.assign.target = create_leaf_id($1);
+        $$->as.assign.value = $3;
     }
     | IDENT ADD_ASSIGN expr {
         $$ = create_node(NODE_ASSIGN);
-        $$->lexeme = ast_strdup("+=");
-        $$->left = create_leaf_id($1);
-        $$->right = $3;
+        $$->as.assign.op = ast_strdup("+=");
+        $$->as.assign.target = create_leaf_id($1);
+        $$->as.assign.value = $3;
     }
     | IDENT SUB_ASSIGN expr {
         $$ = create_node(NODE_ASSIGN);
-        $$->lexeme = ast_strdup("-=");
-        $$->left = create_leaf_id($1);
-        $$->right = $3;
+        $$->as.assign.op = ast_strdup("-=");
+        $$->as.assign.target = create_leaf_id($1);
+        $$->as.assign.value = $3;
     }
     | IDENT MUL_ASSIGN expr {
         $$ = create_node(NODE_ASSIGN);
-        $$->lexeme = ast_strdup("*=");
-        $$->left = create_leaf_id($1);
-        $$->right = $3;
+        $$->as.assign.op = ast_strdup("*=");
+        $$->as.assign.target = create_leaf_id($1);
+        $$->as.assign.value = $3;
     }
     | IDENT DIV_ASSIGN expr {
         $$ = create_node(NODE_ASSIGN);
-        $$->lexeme = ast_strdup("/=");
-        $$->left = create_leaf_id($1);
-        $$->right = $3;
+        $$->as.assign.op = ast_strdup("/=");
+        $$->as.assign.target = create_leaf_id($1);
+        $$->as.assign.value = $3;
     }
     | IDENT MOD_ASSIGN expr {
         $$ = create_node(NODE_ASSIGN);
-        $$->lexeme = ast_strdup("%=");
-        $$->left = create_leaf_id($1);
-        $$->right = $3;
+        $$->as.assign.op = ast_strdup("%=");
+        $$->as.assign.target = create_leaf_id($1);
+        $$->as.assign.value = $3;
     }
     | expr INC {
         $$ = create_node(NODE_UNARY_OP);
-        $$->lexeme = ast_strdup("++");
-        $$->right = $1;
+        $$->as.unary.op = ast_strdup("++");
+        $$->as.unary.operand = $1;
     }
     | expr DEC {
         $$ = create_node(NODE_UNARY_OP);
-        $$->lexeme = ast_strdup("--");
-        $$->right = $1;
+        $$->as.unary.op = ast_strdup("--");
+        $$->as.unary.operand = $1;
     }
-    | expr '+' expr { $$ = create_node(NODE_BINARY_OP); $$->lexeme = ast_strdup("+"); $$->left = $1; $$->right = $3; }
-    | expr '-' expr { $$ = create_node(NODE_BINARY_OP); $$->lexeme = ast_strdup("-"); $$->left = $1; $$->right = $3; }
-    | expr '*' expr { $$ = create_node(NODE_BINARY_OP); $$->lexeme = ast_strdup("*"); $$->left = $1; $$->right = $3; }
-    | expr '/' expr { $$ = create_node(NODE_BINARY_OP); $$->lexeme = ast_strdup("/"); $$->left = $1; $$->right = $3; }
-    | expr '%' expr { $$ = create_node(NODE_BINARY_OP); $$->lexeme = ast_strdup("%"); $$->left = $1; $$->right = $3; }
-    | expr POW expr { $$ = create_node(NODE_BINARY_OP); $$->lexeme = ast_strdup("**"); $$->left = $1; $$->right = $3; }
-    | expr '&' expr { $$ = create_node(NODE_BINARY_OP); $$->lexeme = ast_strdup("&"); $$->left = $1; $$->right = $3; }
-    | expr '|' expr { $$ = create_node(NODE_BINARY_OP); $$->lexeme = ast_strdup("|"); $$->left = $1; $$->right = $3; }
-    | expr '^' expr { $$ = create_node(NODE_BINARY_OP); $$->lexeme = ast_strdup("^"); $$->left = $1; $$->right = $3; }
-    | expr SHL expr { $$ = create_node(NODE_BINARY_OP); $$->lexeme = ast_strdup("<<"); $$->left = $1; $$->right = $3; }
-    | expr '>' '>' expr { $$ = create_node(NODE_BINARY_OP); $$->lexeme = ast_strdup(">>"); $$->left = $1; $$->right = $4; }
-    | expr EQ expr { $$ = create_node(NODE_BINARY_OP); $$->lexeme = ast_strdup("=="); $$->left = $1; $$->right = $3; }
-    | expr NEQ expr { $$ = create_node(NODE_BINARY_OP); $$->lexeme = ast_strdup("!="); $$->left = $1; $$->right = $3; }
-    | expr '<' expr { $$ = create_node(NODE_BINARY_OP); $$->lexeme = ast_strdup("<"); $$->left = $1; $$->right = $3; }
-    | expr '>' expr { $$ = create_node(NODE_BINARY_OP); $$->lexeme = ast_strdup(">"); $$->left = $1; $$->right = $3; }
-    | expr LE expr { $$ = create_node(NODE_BINARY_OP); $$->lexeme = ast_strdup("<="); $$->left = $1; $$->right = $3; }
-    | expr GE expr { $$ = create_node(NODE_BINARY_OP); $$->lexeme = ast_strdup(">="); $$->left = $1; $$->right = $3; }
-    | expr AND expr { $$ = create_node(NODE_BINARY_OP); $$->lexeme = ast_strdup("&&"); $$->left = $1; $$->right = $3; }
-    | expr OR expr { $$ = create_node(NODE_BINARY_OP); $$->lexeme = ast_strdup("||"); $$->left = $1; $$->right = $3; }
+    | expr '+' expr { $$ = create_node(NODE_BINARY_OP); $$->as.binop.op = ast_strdup("+"); $$->as.binop.left = $1; $$->as.binop.right = $3; }
+    | expr '-' expr { $$ = create_node(NODE_BINARY_OP); $$->as.binop.op = ast_strdup("-"); $$->as.binop.left = $1; $$->as.binop.right = $3; }
+    | expr '*' expr { $$ = create_node(NODE_BINARY_OP); $$->as.binop.op = ast_strdup("*"); $$->as.binop.left = $1; $$->as.binop.right = $3; }
+    | expr '/' expr { $$ = create_node(NODE_BINARY_OP); $$->as.binop.op = ast_strdup("/"); $$->as.binop.left = $1; $$->as.binop.right = $3; }
+    | expr '%' expr { $$ = create_node(NODE_BINARY_OP); $$->as.binop.op = ast_strdup("%"); $$->as.binop.left = $1; $$->as.binop.right = $3; }
+    | expr POW expr { $$ = create_node(NODE_BINARY_OP); $$->as.binop.op = ast_strdup("**"); $$->as.binop.left = $1; $$->as.binop.right = $3; }
+    | expr '&' expr { $$ = create_node(NODE_BINARY_OP); $$->as.binop.op = ast_strdup("&"); $$->as.binop.left = $1; $$->as.binop.right = $3; }
+    | expr '|' expr { $$ = create_node(NODE_BINARY_OP); $$->as.binop.op = ast_strdup("|"); $$->as.binop.left = $1; $$->as.binop.right = $3; }
+    | expr '^' expr { $$ = create_node(NODE_BINARY_OP); $$->as.binop.op = ast_strdup("^"); $$->as.binop.left = $1; $$->as.binop.right = $3; }
+    | expr SHL expr { $$ = create_node(NODE_BINARY_OP); $$->as.binop.op = ast_strdup("<<"); $$->as.binop.left = $1; $$->as.binop.right = $3; }
+    | expr '>' '>' expr { $$ = create_node(NODE_BINARY_OP); $$->as.binop.op = ast_strdup(">>"); $$->as.binop.left = $1; $$->as.binop.right = $4; }
+    | expr EQ expr { $$ = create_node(NODE_BINARY_OP); $$->as.binop.op = ast_strdup("=="); $$->as.binop.left = $1; $$->as.binop.right = $3; }
+    | expr NEQ expr { $$ = create_node(NODE_BINARY_OP); $$->as.binop.op = ast_strdup("!="); $$->as.binop.left = $1; $$->as.binop.right = $3; }
+    | expr '<' expr { $$ = create_node(NODE_BINARY_OP); $$->as.binop.op = ast_strdup("<"); $$->as.binop.left = $1; $$->as.binop.right = $3; }
+    | expr '>' expr { $$ = create_node(NODE_BINARY_OP); $$->as.binop.op = ast_strdup(">"); $$->as.binop.left = $1; $$->as.binop.right = $3; }
+    | expr LE expr { $$ = create_node(NODE_BINARY_OP); $$->as.binop.op = ast_strdup("<="); $$->as.binop.left = $1; $$->as.binop.right = $3; }
+    | expr GE expr { $$ = create_node(NODE_BINARY_OP); $$->as.binop.op = ast_strdup(">="); $$->as.binop.left = $1; $$->as.binop.right = $3; }
+    | expr AND expr { $$ = create_node(NODE_BINARY_OP); $$->as.binop.op = ast_strdup("&&"); $$->as.binop.left = $1; $$->as.binop.right = $3; }
+    | expr OR expr { $$ = create_node(NODE_BINARY_OP); $$->as.binop.op = ast_strdup("||"); $$->as.binop.left = $1; $$->as.binop.right = $3; }
     | expr PIPE expr {
         $$ = create_node(NODE_PIPELINE);
-        $$->left = $1;
-        $$->right = $3;
+        $$->as.pipeline.left = $1;
+        $$->as.pipeline.right = $3;
     }
-    | '!' expr { $$ = create_node(NODE_UNARY_OP); $$->lexeme = ast_strdup("!"); $$->right = $2; }
-    | '~' expr { $$ = create_node(NODE_UNARY_OP); $$->lexeme = ast_strdup("~"); $$->right = $2; }
-    | '-' expr %prec '!' { $$ = create_node(NODE_UNARY_OP); $$->lexeme = ast_strdup("-"); $$->right = $2; }
+    | '!' expr { $$ = create_node(NODE_UNARY_OP); $$->as.unary.op = ast_strdup("!"); $$->as.unary.operand = $2; }
+    | '~' expr { $$ = create_node(NODE_UNARY_OP); $$->as.unary.op = ast_strdup("~"); $$->as.unary.operand = $2; }
+    | '-' expr %prec '!' { $$ = create_node(NODE_UNARY_OP); $$->as.unary.op = ast_strdup("-"); $$->as.unary.operand = $2; }
     | '(' expr ')' { $$ = $2; }
     | '{' block_body '}' {
         $$ = create_node(NODE_STMT_LIST);
-        $$->body = $2;
+        $$->as.stmt_list.body = $2;
     }
     | expr '(' expr_list ')' {
         $$ = create_node(NODE_CALL);
         if ($1->type == NODE_IDENTIFIER) {
-            $$->lexeme = ast_strdup($1->lexeme);
+            $$->as.call.debug_name = ast_strdup($1->as.ident.name);
         }
         else {
             // Must evaluate before calling!
-            $$->lexeme = ast_strdup("<dynamic>");
+            $$->as.call.debug_name = ast_strdup("<dynamic>");
         }
-        $$->left = $1;
-        $$->args = $3;
+        $$->as.call.callee = $1;
+        $$->as.call.args = $3;
     }
     | expr COLONCOLON IDENT {
         $$ = create_node(NODE_MEMBER_ACCESS);
-        $$->left = $1;
-        $$->lexeme = ast_strdup("::");
-        $$->right = create_leaf_id($3);
+        $$->as.member.object = $1;
+        $$->as.member.op = ast_strdup("::");
+        $$->as.member.member = create_leaf_id($3);
     }
     | expr '.' IDENT {
         $$ = create_node(NODE_MEMBER_ACCESS);
-        $$->left = $1;
-        $$->lexeme = ast_strdup(".");
-        $$->right = create_leaf_id($3);
+        $$->as.member.object = $1;
+        $$->as.member.op = ast_strdup(".");
+        $$->as.member.member = create_leaf_id($3);
     }
     | control_expr { $$ = $1; }
     | list_literal { $$ = $1; }
     | struct_literal { $$ = $1; }
     | expr DOTDOT expr {
         $$ = create_node(NODE_RANGE);
-        $$->left = $1;
-        $$->right = $3;
+        $$->as.range.inclusive = 0;
+        $$->as.range.start = $1;
+        $$->as.range.end = $3;
     }
     | expr DOTDOT '=' expr {
         $$ = create_node(NODE_RANGE);
-        $$->lexeme = ast_strdup("inclusive");
-        $$->left = $1;
-        $$->right = $4;
+        $$->as.range.inclusive = 1;
+        $$->as.range.start = $1;
+        $$->as.range.end = $4;
     }
     | expr '[' expr_list ']' {
         $$ = create_node(NODE_BINARY_OP);
-        $$->lexeme = ast_strdup("[]");
-        $$->left = $1;
-        $$->right = $3;
+        $$->as.binop.op = ast_strdup("[]");
+        $$->as.binop.left = $1;
+        $$->as.binop.right = $3;
     }
     | FN '(' lambda_args ')' return_type_opt '{' block_body '}' {
         $$ = create_node(NODE_LAMBDA);
-        $$->args = $3;
-        $$->return_type = $5;
-        $$->body = $7;
+        $$->as.lambda.params = $3;
+        $$->as.lambda.return_type = $5;
+        $$->as.lambda.body = $7;
     }
     ;
     ;
@@ -383,14 +384,14 @@ expr:
 struct_literal:
     IDENT '<' type_params_list '>' '{' struct_literal_fields '}' {
         $$ = create_node(NODE_STRUCT_LITERAL);
-        $$->lexeme = ast_strdup($1);
-        $$->generic_args = $3;
-        $$->args = $6;
+        $$->as.struct_lit.name = ast_strdup($1);
+        $$->as.struct_lit.generic_args = $3;
+        $$->as.struct_lit.fields = $6;
     }
     | IDENT '{' struct_literal_fields '}' {
         $$ = create_node(NODE_STRUCT_LITERAL);
-        $$->lexeme = ast_strdup($1);
-        $$->args = $3;
+        $$->as.struct_lit.name = ast_strdup($1);
+        $$->as.struct_lit.fields = $3;
     }
     ;
 
@@ -408,8 +409,8 @@ struct_literal_fields:
 struct_literal_field:
     IDENT ':' expr {
         $$ = create_node(NODE_STRUCT_FIELD);
-        $$->lexeme = ast_strdup($1);
-        $$->right = $3;
+        $$->as.struct_field.name = ast_strdup($1);
+        $$->as.struct_field.value = $3;
     }
     ;
 
@@ -418,81 +419,93 @@ struct_literal_field:
 control_expr:
     IF expr '{' block_body '}' %prec LOWER_THAN_ELSE {
         $$ = create_node(NODE_IF);
-        $$->cond = $2;
-        $$->body = $4;
+        $$->as.if_expr.cond = $2;
+        $$->as.if_expr.then_body = $4;
     }
     | IF expr '{' block_body '}' ELSE '{' block_body '}' {
         $$ = create_node(NODE_IF);
-        $$->cond = $2;
-        $$->body = $4;
-        $$->else_branch = $8;
+        $$->as.if_expr.cond = $2;
+        $$->as.if_expr.then_body = $4;
+        $$->as.if_expr.else_body = $8;
     }
     | IF expr '{' block_body '}' ELSE control_expr {
         $$ = create_node(NODE_IF);
-        $$->cond = $2;
-        $$->body = $4;
-        $$->else_branch = $7;
+        $$->as.if_expr.cond = $2;
+        $$->as.if_expr.then_body = $4;
+        $$->as.if_expr.else_body = $7;
     }
     | MATCH expr '{' match_arms '}' {
         $$ = create_node(NODE_MATCH);
-        $$->cond = $2;
-        $$->body = $4;
+        $$->as.if_expr.cond = $2;
+        $$->as.if_expr.then_body = $4;
     }
     | FOR '(' IDENT '=' expr ';' expr ';' expr ')' '{' block_body '}' {
         $$ = create_node(NODE_FOR);
-        $$->lexeme = ast_strdup($3);
-        $$->left = $5;
-        $$->cond = $7;
-        $$->right = $9;
-        $$->body = $12;
+        $$->as.for_expr.name = ast_strdup($3);
+        $$->as.for_expr.is_decl = 0;
+        $$->as.for_expr.is_foreach = 0;
+        $$->as.for_expr.init = $5;
+        $$->as.for_expr.cond = $7;
+        $$->as.for_expr.step = $9;
+        $$->as.for_expr.body = $12;
     }
     | FOR '(' IDENT '=' expr ';' expr ';' expr ')' '{' block_body '}' ELSE '{' block_body '}' {
         $$ = create_node(NODE_FOR);
-        $$->lexeme = ast_strdup($3);
-        $$->left = $5;
-        $$->cond = $7;
-        $$->right = $9;
-        $$->body = $12;
-        $$->else_branch = $16;
+        $$->as.for_expr.name = ast_strdup($3);
+        $$->as.for_expr.is_decl = 0;
+        $$->as.for_expr.is_foreach = 0;
+        $$->as.for_expr.init = $5;
+        $$->as.for_expr.cond = $7;
+        $$->as.for_expr.step = $9;
+        $$->as.for_expr.body = $12;
+        $$->as.for_expr.else_body = $16;
     }
     | FOR '(' LET IDENT '=' expr ';' expr ';' expr ')' '{' block_body '}' {
         $$ = create_node(NODE_FOR);
-        $$->lexeme = ast_strdup($4);
-        $$->left = $6;
-        $$->cond = $8;
-        $$->right = $10;
-        $$->body = $13;
+        $$->as.for_expr.name = ast_strdup($4);
+        $$->as.for_expr.is_decl = 1;
+        $$->as.for_expr.is_foreach = 0;
+        $$->as.for_expr.init = $6;
+        $$->as.for_expr.cond = $8;
+        $$->as.for_expr.step = $10;
+        $$->as.for_expr.body = $13;
     }
     | FOR '(' LET IDENT '=' expr ';' expr ';' expr ')' '{' block_body '}' ELSE '{' block_body '}' {
         $$ = create_node(NODE_FOR);
-        $$->lexeme = ast_strdup($4);
-        $$->left = $6;
-        $$->cond = $8;
-        $$->right = $10;
-        $$->body = $13;
-        $$->else_branch = $17;
+        $$->as.for_expr.name = ast_strdup($4);
+        $$->as.for_expr.is_decl = 1;
+        $$->as.for_expr.is_foreach = 0;
+        $$->as.for_expr.init = $6;
+        $$->as.for_expr.cond = $8;
+        $$->as.for_expr.step = $10;
+        $$->as.for_expr.body = $13;
+        $$->as.for_expr.else_body = $17;
     }
     | FOR IDENT IN expr '{' block_body '}' {
         $$ = create_node(NODE_FOR);
-        $$->lexeme = ast_strdup($2);
-        $$->cond = $4;
-        $$->body = $6;
+        $$->as.for_expr.name = ast_strdup($2);
+        $$->as.for_expr.is_decl = 0;
+        $$->as.for_expr.is_foreach = 1;
+        $$->as.for_expr.cond = $4;
+        $$->as.for_expr.body = $6;
     }
     | FOR IDENT IN expr '{' block_body '}' ELSE '{' block_body '}' {
         $$ = create_node(NODE_FOR);
-        $$->lexeme = ast_strdup($2);
-        $$->cond = $4;
-        $$->body = $6;
-        $$->else_branch = $10;
+        $$->as.for_expr.name = ast_strdup($2);
+        $$->as.for_expr.is_decl = 0;
+        $$->as.for_expr.is_foreach = 1;
+        $$->as.for_expr.cond = $4;
+        $$->as.for_expr.body = $6;
+        $$->as.for_expr.else_body = $10;
     }
     | LOOP '{' block_body '}' {
         $$ = create_node(NODE_LOOP);
-        $$->body = $3;
+        $$->as.loop_expr.body = $3;
     }
     | LOOP '{' block_body '}' ELSE '{' block_body '}' {
         $$ = create_node(NODE_LOOP);
-        $$->body = $3;
-        $$->else_branch = $7;
+        $$->as.loop_expr.body = $3;
+        $$->as.loop_expr.else_body = $7;
     }
     ;
 
@@ -500,7 +513,7 @@ control_expr:
 list_literal:
     '[' expr_list ']' {
         $$ = create_node(NODE_LIST_LITERAL);
-        $$->args = $2;
+        $$->as.list_lit.items = $2;
     }
     ;
 
@@ -532,8 +545,8 @@ call_args:
 func_param:
     IDENT ':' type_expr {
         $$ = create_node(NODE_FUNC_PARAMETER);
-        $$->lexeme = ast_strdup($1);
-        $$->right = $3;
+        $$->as.func_param.name = ast_strdup($1);
+        $$->as.func_param.type_expr = $3;
     }
     ;
 
@@ -551,12 +564,12 @@ lambda_args:
 type_expr:
     IDENT {
         $$ = create_node(NODE_CONCRETE_TYPE);
-        $$->lexeme = ast_strdup($1);
+        $$->as.type.name = ast_strdup($1);
     }
     | IDENT '<' type_params_list '>' {
         $$ = create_node(NODE_CONCRETE_TYPE);
-        $$->lexeme = ast_strdup($1);
-        $$->generic_args = $3;
+        $$->as.type.name = ast_strdup($1);
+        $$->as.type.generic_args = $3;
     }
     ;
 
@@ -583,14 +596,14 @@ match_arms:
 match_arm:
     pattern ARROW stmt {
         $$ = create_node(NODE_MATCH_ARM);
-        $$->left = $1;
-        $$->right = $3;
+        $$->as.match_arm.pattern = $1;
+        $$->as.match_arm.body = $3;
     }
     | pattern IF expr ARROW stmt {
         $$ = create_node(NODE_MATCH_ARM);
-        $$->left = $1;
-        $$->cond = $3;
-        $$->right = $5;
+        $$->as.match_arm.pattern = $1;
+        $$->as.match_arm.guard = $3;
+        $$->as.match_arm.body = $5;
     }
     ;
 
@@ -603,12 +616,12 @@ pattern:
         if (n) {
             while(n->next) n = n->next;
             n->next = create_node(NODE_PLACEHOLDER);
-            n->next->lexeme = ast_strdup($5);
-            $$->args = $2;
+            n->next->as.placeholder.name = ast_strdup($5);
+            $$->as.list_pattern.items = $2;
         }
         else {
-            $$->args = create_node(NODE_PLACEHOLDER);
-            $$->args->lexeme = ast_strdup($5);
+            $$->as.list_pattern.items = create_node(NODE_PLACEHOLDER);
+            $$->as.list_pattern.items->as.placeholder.name = ast_strdup($5);
         }
     }
     ;

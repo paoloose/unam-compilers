@@ -54,7 +54,7 @@ typedef struct SymbolTableEntry {
 
     // struct SymbolTableEntry* next;
 
-    ASTNode* type_node; // type information
+    ASTNode* node; // type information
     struct SymbolTableEntry* next;
 } SymbolTableEntry;
 

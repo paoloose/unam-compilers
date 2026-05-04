@@ -18,6 +18,7 @@ ARGS ?=
 LEX_FILE = lexer.l
 YACC_FILE = parser.y
 ANALYZER_SRC = analyzer.c
+AST_SRC = ast.c
 HEADERS = ast.h analyzer.h debug.h darray.h
 BUILTINS = builtins.c
 
@@ -25,7 +26,7 @@ BUILTINS = builtins.c
 LEX_OUT = lex.yy.c
 YACC_OUT = parser.tab.c
 YACC_HEADER = parser.tab.h
-OBJS = lex.yy.o parser.tab.o analyzer.o builtins.o
+OBJS = lex.yy.o parser.tab.o analyzer.o builtins.o ast.o
 
 EXECUTABLE = ennuyeux_parser
 
@@ -41,6 +42,9 @@ builtins.o: $(BUILTINS) $(HEADERS)
 
 analyzer.o: analyzer.c $(HEADERS)
 	$(CC) $(CFLAGS) -c analyzer.c
+
+ast.o: ast.c $(HEADERS)
+	$(CC) $(CFLAGS) -c $(AST_SRC)
 
 parser.tab.o: $(YACC_OUT) $(HEADERS)
 	$(CC) $(CFLAGS) -c $(YACC_OUT)
