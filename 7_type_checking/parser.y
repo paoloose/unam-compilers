@@ -40,7 +40,7 @@ ASTNode* root;
 %type <node_val> block_body stmt_seq stmt expr match_arms match_arm pattern type_expr type_params_list
 %type <node_val> expr_list call_args func_param lambda_args struct_fields struct_field enum_variants enum_variant
 %type <node_val> list_literal control_expr struct_literal struct_literal_fields struct_literal_field
-%type <node_val> return_type_opt
+%type <node_val> return_type_opt expr_opt for_init let_stmt
 
 %right '=' ADD_ASSIGN SUB_ASSIGN MUL_ASSIGN DIV_ASSIGN MOD_ASSIGN
 %left OR
@@ -183,20 +183,32 @@ struct_field:
     ;
 
 block_body:
-    /* empty */ { $$ = NULL; }
-    | stmt_seq { $$ = $1; }
+    /* empty */ {
+        $$ = create_node(NODE_SCOPE);
+        $$->as.scope.body = NULL;
+    }
+    | stmt_seq {
+        $$ = create_node(NODE_SCOPE);
+        $$->as.scope.body = $1;
+    }
     | stmt_seq expr {
         ASTNode* n = $1;
         while(n->next) n = n->next;
         ASTNode* ret_node = create_node(NODE_RETURN);
+        ret_node->as.return_stmt.is_explicit = false;
         ret_node->as.return_stmt.value = $2;
         n->next = ret_node;
-        $$ = $1;
+
+        $$ = create_node(NODE_SCOPE);
+        $$->as.scope.body = $1;
     }
     | expr {
         ASTNode* ret_node = create_node(NODE_RETURN);
+        ret_node->as.return_stmt.is_explicit = false;
         ret_node->as.return_stmt.value = $1;
-        $$ = ret_node;
+
+        $$ = create_node(NODE_SCOPE);
+        $$->as.scope.body = ret_node;
     }
     ;
 
@@ -210,25 +222,31 @@ stmt_seq:
     }
     ;
 
-stmt:
-    expr ';' { $$ = $1; }
-    | LET IDENT '=' expr ';' {
+let_stmt:
+    LET IDENT '=' expr {
         $$ = create_node(NODE_LET);
         $$->as.let.name = ast_strdup($2);
         $$->as.let.value = $4;
     }
-    | LET IDENT ':' type_expr '=' expr ';' {
+    | LET IDENT ':' type_expr '=' expr {
         $$ = create_node(NODE_LET);
         $$->as.let.name = ast_strdup($2);
         $$->as.let.declared_type = $4;
         $$->as.let.value = $6;
     }
+    ;
+
+stmt:
+    expr ';' { $$ = $1; }
+    | let_stmt ';' { $$ = $1; }
     | RETURN expr ';' {
         $$ = create_node(NODE_RETURN);
+        $$->as.return_stmt.is_explicit = true;
         $$->as.return_stmt.value = $2;
     }
     | RETURN ';' {
         $$ = create_node(NODE_RETURN);
+        $$->as.return_stmt.is_explicit = true;
     }
     | BREAK expr ';' {
         $$ = create_node(NODE_BREAK);
@@ -237,6 +255,16 @@ stmt:
     | BREAK ';' {
         $$ = create_node(NODE_BREAK);
     }
+    ;
+
+for_init:
+    let_stmt { $$ = $1; }
+    | stmt { $$ = $1; }
+    ;
+
+expr_opt:
+    /* empty */ { $$ = NULL; }
+    | expr { $$ = $1; }
     ;
 
 expr:
@@ -439,64 +467,33 @@ control_expr:
         $$->as.if_expr.cond = $2;
         $$->as.if_expr.then_body = $4;
     }
-    | FOR '(' IDENT '=' expr ';' expr ';' expr ')' '{' block_body '}' {
+    | FOR '(' for_init ';' expr_opt ';' expr_opt ')' '{' block_body '}' {
         $$ = create_node(NODE_FOR);
-        $$->as.for_expr.name = ast_strdup($3);
-        $$->as.for_expr.is_decl = 0;
-        $$->as.for_expr.is_foreach = 0;
-        $$->as.for_expr.init = $5;
-        $$->as.for_expr.cond = $7;
-        $$->as.for_expr.step = $9;
-        $$->as.for_expr.body = $12;
+        $$->as.for_expr.init = $3;
+        $$->as.for_expr.cond = $5;
+        $$->as.for_expr.step = $7;
+        $$->as.for_expr.body = $10;
     }
-    | FOR '(' IDENT '=' expr ';' expr ';' expr ')' '{' block_body '}' ELSE '{' block_body '}' {
+    | FOR '(' for_init ';' expr_opt ';' expr_opt ')' '{' block_body '}' ELSE '{' block_body '}' {
         $$ = create_node(NODE_FOR);
-        $$->as.for_expr.name = ast_strdup($3);
-        $$->as.for_expr.is_decl = 0;
-        $$->as.for_expr.is_foreach = 0;
-        $$->as.for_expr.init = $5;
-        $$->as.for_expr.cond = $7;
-        $$->as.for_expr.step = $9;
-        $$->as.for_expr.body = $12;
-        $$->as.for_expr.else_body = $16;
-    }
-    | FOR '(' LET IDENT '=' expr ';' expr ';' expr ')' '{' block_body '}' {
-        $$ = create_node(NODE_FOR);
-        $$->as.for_expr.name = ast_strdup($4);
-        $$->as.for_expr.is_decl = 1;
-        $$->as.for_expr.is_foreach = 0;
-        $$->as.for_expr.init = $6;
-        $$->as.for_expr.cond = $8;
-        $$->as.for_expr.step = $10;
-        $$->as.for_expr.body = $13;
-    }
-    | FOR '(' LET IDENT '=' expr ';' expr ';' expr ')' '{' block_body '}' ELSE '{' block_body '}' {
-        $$ = create_node(NODE_FOR);
-        $$->as.for_expr.name = ast_strdup($4);
-        $$->as.for_expr.is_decl = 1;
-        $$->as.for_expr.is_foreach = 0;
-        $$->as.for_expr.init = $6;
-        $$->as.for_expr.cond = $8;
-        $$->as.for_expr.step = $10;
-        $$->as.for_expr.body = $13;
-        $$->as.for_expr.else_body = $17;
+        $$->as.for_expr.init = $3;
+        $$->as.for_expr.cond = $5;
+        $$->as.for_expr.step = $7;
+        $$->as.for_expr.body = $10;
+        $$->as.for_expr.else_body = $14;
     }
     | FOR IDENT IN expr '{' block_body '}' {
-        $$ = create_node(NODE_FOR);
-        $$->as.for_expr.name = ast_strdup($2);
-        $$->as.for_expr.is_decl = 0;
-        $$->as.for_expr.is_foreach = 1;
-        $$->as.for_expr.cond = $4;
-        $$->as.for_expr.body = $6;
+        $$ = create_node(NODE_FOREACH);
+        $$->as.foreach_expr.binded_term = ast_strdup($2);
+        $$->as.foreach_expr.iterator = $4;
+        $$->as.foreach_expr.body = $6;
     }
     | FOR IDENT IN expr '{' block_body '}' ELSE '{' block_body '}' {
-        $$ = create_node(NODE_FOR);
-        $$->as.for_expr.name = ast_strdup($2);
-        $$->as.for_expr.is_decl = 0;
-        $$->as.for_expr.is_foreach = 1;
-        $$->as.for_expr.cond = $4;
-        $$->as.for_expr.body = $6;
-        $$->as.for_expr.else_body = $10;
+        $$ = create_node(NODE_FOREACH);
+        $$->as.foreach_expr.binded_term = ast_strdup($2);
+        $$->as.foreach_expr.iterator = $4;
+        $$->as.foreach_expr.body = $6;
+        $$->as.foreach_expr.else_body = $10;
     }
     | LOOP '{' block_body '}' {
         $$ = create_node(NODE_LOOP);
