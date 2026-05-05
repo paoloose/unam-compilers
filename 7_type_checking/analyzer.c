@@ -347,6 +347,10 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
                         if (last_stmt->type == NODE_RETURN && !last_stmt->as.return_stmt.is_explicit) {
                             node->evaluates_to_type = last_stmt->as.return_stmt.value ? last_stmt->as.return_stmt.value->evaluates_to_type : NULL;
                         }
+                        bool last_stmt_may_evaluate = last_stmt->type == NODE_IF || last_stmt->type == NODE_LOOP || last_stmt->type == NODE_FOR || last_stmt->type == NODE_FOREACH;
+                        if (last_stmt_may_evaluate && last_stmt->evaluates_to_type) {
+                            node->evaluates_to_type = last_stmt->evaluates_to_type;
+                        }
                     }
                     da_astnodes_pop(&contexts_stack, NULL);
                     pop_scope(&current_scope);
