@@ -40,7 +40,7 @@ ASTNode* root;
 %type <node_val> block_body stmt_seq stmt expr match_arms match_arm pattern type_expr type_params_list
 %type <node_val> expr_list call_args func_param lambda_args struct_fields struct_field enum_variants enum_variant
 %type <node_val> list_literal control_expr struct_literal struct_literal_fields struct_literal_field
-%type <node_val> return_type_opt expr_opt for_init let_stmt block_expr expr_no_block
+%type <node_val> return_type_opt expr_opt for_init let_stmt block_expr expr_no_block generic_type_params
 
 %right '=' ADD_ASSIGN SUB_ASSIGN MUL_ASSIGN DIV_ASSIGN MOD_ASSIGN
 %left OR
@@ -151,17 +151,17 @@ enum_variant:
     ;
 
 struct_def:
-    STRUCT IDENT '{' struct_fields '}' {
+    STRUCT IDENT generic_type_params '{' struct_fields '}' {
         $$ = create_node(NODE_STRUCT_DECL);
-        $$->as.enum_decl.name = ast_strdup($2);
-        $$->as.enum_decl.variants = $4;
+        $$->as.struct_decl.name = ast_strdup($2);
+        $$->as.struct_decl.generic_args = $3;
+        $$->as.struct_decl.fields = $5;
     }
-    | STRUCT IDENT '<' type_params_list '>' '{' struct_fields '}' {
-        $$ = create_node(NODE_STRUCT_DECL);
-        $$->as.enum_decl.name = ast_strdup($2);
-        $$->as.enum_decl.generic_args = $4;
-        $$->as.enum_decl.variants = $7;
-    }
+    ;
+
+generic_type_params:
+    /* empty */ { $$ = NULL; }
+    | '<' type_params_list '>' { $$ = $2; }
     ;
 
 struct_fields:
@@ -365,8 +365,8 @@ expr_no_block:
     | expr '>' '>' expr { $$ = create_node(NODE_BINARY_OP); $$->as.binop.op = ast_strdup(">>"); $$->as.binop.left = $1; $$->as.binop.right = $4; }
     | expr EQ expr { $$ = create_node(NODE_BINARY_OP); $$->as.binop.op = ast_strdup("=="); $$->as.binop.left = $1; $$->as.binop.right = $3; }
     | expr NEQ expr { $$ = create_node(NODE_BINARY_OP); $$->as.binop.op = ast_strdup("!="); $$->as.binop.left = $1; $$->as.binop.right = $3; }
-    | expr '<' expr { $$ = create_node(NODE_BINARY_OP); $$->as.binop.op = ast_strdup("<"); $$->as.binop.left = $1; $$->as.binop.right = $3; }
-    | expr '>' expr { $$ = create_node(NODE_BINARY_OP); $$->as.binop.op = ast_strdup(">"); $$->as.binop.left = $1; $$->as.binop.right = $3; }
+    | expr '<' expr %dprec 1 { $$ = create_node(NODE_BINARY_OP); $$->as.binop.op = ast_strdup("<"); $$->as.binop.left = $1; $$->as.binop.right = $3; }
+    | expr '>' expr %dprec 1 { $$ = create_node(NODE_BINARY_OP); $$->as.binop.op = ast_strdup(">"); $$->as.binop.left = $1; $$->as.binop.right = $3; }
     | expr LE expr { $$ = create_node(NODE_BINARY_OP); $$->as.binop.op = ast_strdup("<="); $$->as.binop.left = $1; $$->as.binop.right = $3; }
     | expr GE expr { $$ = create_node(NODE_BINARY_OP); $$->as.binop.op = ast_strdup(">="); $$->as.binop.left = $1; $$->as.binop.right = $3; }
     | expr AND expr { $$ = create_node(NODE_BINARY_OP); $$->as.binop.op = ast_strdup("&&"); $$->as.binop.left = $1; $$->as.binop.right = $3; }
@@ -431,13 +431,13 @@ expr_no_block:
     ;
 
 struct_literal:
-    IDENT '<' type_params_list '>' '{' struct_literal_fields '}' {
+    IDENT '<' type_params_list '>' '{' struct_literal_fields '}' %dprec 5 {
         $$ = create_node(NODE_STRUCT_LITERAL);
         $$->as.struct_lit.name = ast_strdup($1);
         $$->as.struct_lit.generic_args = $3;
         $$->as.struct_lit.fields = $6;
     }
-    | IDENT '{' struct_literal_fields '}' {
+    | IDENT '{' struct_literal_fields '}' %dprec 5 {
         $$ = create_node(NODE_STRUCT_LITERAL);
         $$->as.struct_lit.name = ast_strdup($1);
         $$->as.struct_lit.fields = $3;
@@ -614,11 +614,11 @@ lambda_args:
 
 type_expr:
     IDENT {
-        $$ = create_node(NODE_CONCRETE_TYPE);
+        $$ = create_node(NODE_PLAIN_TYPE);
         $$->as.type.name = ast_strdup($1);
     }
     | IDENT '<' type_params_list '>' {
-        $$ = create_node(NODE_CONCRETE_TYPE);
+        $$ = create_node(NODE_PLAIN_TYPE);
         $$->as.type.name = ast_strdup($1);
         $$->as.type.generic_args = $3;
     }
