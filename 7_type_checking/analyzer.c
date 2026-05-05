@@ -207,8 +207,7 @@ void add_symbol_unchecked(Scope* current_scope, const char* name, ASTNode* type_
         case NODE_ENUM_DECL: {
             break;
         };
-        case NODE_FUNCTION:
-        case NODE_LAMBDA: {
+        case NODE_FUNCTION: {
             break;
         };
         case NODE_FUNC_PARAMETER: {
@@ -335,20 +334,23 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
                         if (parameter_type->node->type == NODE_GENERIC_TYPE) {
                             param_type->type = NODE_GENERIC_TYPE;
                         }
-                        node->evaluates_to_type = parameter_type->node;
+                        node->evaluates_to_type = param_type;
                     }
                 }
                 break;
             };
             case NODE_FUNCTION: {
                 char* func_name = node->as.function.name;
+                bool is_lambda = node->as.function.is_lambda;
                 if (phase == PHASE_ENTER) {
                     da_astnodes_append(&contexts_stack, node);
 
                     UNAM_DEBUG("function '%s'\n", func_name);
-                    // The function is available in the current scope, and creates another
-                    if (!add_symbol_unshadowed(current_scope, func_name, node)) {
-                        report_error(node, "Trying to name a function '%s', but it's already defined", func_name);
+                    // Named functions bind to the current scope; lambdas do not
+                    if (!is_lambda) {
+                        if (!add_symbol_unshadowed(current_scope, func_name, node)) {
+                            report_error(node, "Trying to name a function '%s', but it's already defined", func_name);
+                        }
                     }
                     push_scope(&current_scope);
 
@@ -388,6 +390,24 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
                 } else if (phase == PHASE_EXIT) {
                     da_astnodes_pop(&contexts_stack, NULL);
                     UNAM_DEBUG("<- end %s\n", func_name);
+
+                    // Infer return type from body if not explicitly specified
+                    if (node->as.function.body && node->as.function.body->evaluates_to_type) {
+                        ASTNode* body_type = node->as.function.body->evaluates_to_type;
+                        if (node->as.function.return_type) {
+                            if (!types_are_equal(node->as.function.return_type, body_type)) {
+                                report_error(
+                                    node, "Function '%s' return type '%s' doesn't match body type '%s'",
+                                    func_name, node_repr(node->as.function.return_type), node_repr(body_type)
+                                );
+                            }
+                        } else {
+                            node->as.function.return_type = body_type;
+                        }
+                    }
+
+                    // The function node itself evaluates to itself (first-class value)
+                    node->evaluates_to_type = node;
                     pop_scope(&current_scope);
                 }
                 break;
@@ -406,7 +426,7 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
                             report_error(func, "Function is not defined: '%s'", func_name);
                             break;
                         }
-                        if (resolved_func->node->type != NODE_FUNCTION && resolved_func->node->type != NODE_LAMBDA) {
+                        if (resolved_func->node->type != NODE_FUNCTION) {
                             report_error(func, "Trying to call a non function '%s'", node_repr(func->evaluates_to_type));
                             break;
                         }
@@ -442,7 +462,7 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
                     else {
                         // TODO(NOTE): write a test dynamic function calls
                         calling_function = func->evaluates_to_type;
-                        if (calling_function == NULL || (calling_function->type != NODE_FUNCTION && calling_function->type != NODE_LAMBDA)) {
+                        if (calling_function == NULL || calling_function->type != NODE_FUNCTION) {
                             report_error(func, "Trying to call a non function '%s'", node_repr(func->evaluates_to_type));
                         }
                     }
@@ -475,8 +495,7 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
                             goto outer_loop;
                         }
 
-                        SymbolTableEntry* returned_type = find_symbol(current_scope, passed_arg->evaluates_to_type->as.type.name);
-                        UNAM_ASSERT(returned_type != NULL, "function must return a type at this point");
+                        UNAM_ASSERT(find_symbol(current_scope, passed_arg->evaluates_to_type->as.type.name) != NULL, "function must return a type at this point");
                         if (param_type->type == NODE_GENERIC_TYPE) {
                             bool already_specialized = false;
                             size_t i = 0;
@@ -511,15 +530,14 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
                     if (passed_arg != NULL) {
                         report_error(node, "Passing more arguments than expected");
                     }
+
+                    // Set the call's evaluated type to the function's return type
+                    node->evaluates_to_type = calling_function->as.function.return_type;
                 }
                 outer_loop:
                 break;
             };
-            case NODE_STMT_LIST: {
-                UNAM_DEBUG("NODE_STMT_LIST not implemented");
-                exit(69);
-                break;
-            };
+
             case NODE_LET: {
                 // First we evaluate what we got at the right side
                 ASTNode* let_type = node->as.let.declared_type;
@@ -541,18 +559,10 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
                         break;
                     }
 
-                    // If explicitely type, we check
-                    // - if exists in the symbols table
-                    // - if matches the right-hand-side
+                    // If explicitely type, we check if matches the right-hand-side
                     if (let_type) {
-                        const char* type_name = let_type->as.type.name;
-                        SymbolTableEntry* explicit_type = find_symbol(current_scope, type_name);
-                        if (explicit_type == NULL) {
-                            report_error(let_type, "Used explicit type '%s' that does not exist", type_name);
-                            break;
-                        }
-                        if (!types_are_equal(explicit_type->node, evaluated_type_node_right)) {
-                            report_error(node, "Cannot bind variable: types don't match. Expected %s, got %s", node_repr(explicit_type->node), node_repr(evaluated_type_node_right));
+                        if (!types_are_equal(let_type, evaluated_type_node_right)) {
+                            report_error(node, "Cannot bind variable: types don't match. Expected %s, got %s", node_repr(let_type), node_repr(evaluated_type_node_right));
                             break;
                         }
                     }
@@ -961,7 +971,7 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
                         } else if (is_float_diff) {
                             node->evaluates_to_type = find_symbol(current_scope, "float")->node;
                         } else {
-                            report_error(node, "Arithmetic operator %s can only be used for int types", op);
+                            report_error(node, "Arithmetic operator %s can only be used for numeric types", op);
                         }
                     } else if (strcmp(op, "%") == 0 || strcmp(op, "**") == 0 || strcmp(op, "|") == 0 || strcmp(op, "&") == 0 || strcmp(op, "^") == 0 || strcmp(op, "<<") == 0 || strcmp(op, ">>") == 0) {
                         bool left_is_int = strcmp(type_left_name, "int") == 0;
@@ -1063,8 +1073,7 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
             case NODE_CONCRETE_TYPE:
             case NODE_GENERIC_TYPE: {
                 UNAM_DEBUG("  type name=%s", node_repr(node));
-                SymbolTableEntry* found = find_symbol(current_scope, node->as.type.name);
-                if (!found) {
+                if (!find_symbol(current_scope, node->as.type.name)) {
                     report_error(node, "Referenced type '%s' is not defined", node_repr(node));
                 }
 
@@ -1082,12 +1091,18 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
                 break;
             };
             case NODE_IDENTIFIER: {
-                SymbolTableEntry* identifier = find_symbol(current_scope, node_repr(node));
+                SymbolTableEntry* identifier = find_symbol(current_scope, node->as.ident.name);
                 if (!identifier) {
                     report_error(node, "Referencing identifier '%s' doesn't exists", node_repr(node));
                     break;
                 }
-                node->evaluates_to_type = identifier->node;
+                if (identifier->node) {
+                    if (identifier->node->evaluates_to_type) {
+                        node->evaluates_to_type = identifier->node->evaluates_to_type;
+                    } else {
+                        node->evaluates_to_type = identifier->node;
+                    }
+                }
                 break;
             };
             case NODE_INT_LITERAL: {
@@ -1288,58 +1303,7 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
                 }
                 break;
             };
-            case NODE_LAMBDA: {
-                if (phase == PHASE_ENTER) {
-                    UNAM_DEBUG("lambda\n");
-                    push_scope(&current_scope);
 
-                    da_analyze_frames_append(&stack, (AnalyzeFrame){ node, PHASE_EXIT });
-
-                    // Schedule body
-                    if (node->as.lambda.body) {
-                        da_analyze_frames_append(&stack, (AnalyzeFrame){ node->as.lambda.body, PHASE_ENTER });
-                    }
-
-                    // Schedule return type for validation
-                    if (node->as.lambda.return_type) {
-                        da_analyze_frames_append(&stack, (AnalyzeFrame){ node->as.lambda.return_type, PHASE_ENTER });
-                    }
-
-                    // Schedule parameters (in reverse so they're processed in declaration order)
-                    da_analyze_frames_reverse_mode_start(&stack);
-                    ASTNode* param = node->as.lambda.params;
-                    while (param) {
-                        ASTNode* param_type = param->as.func_param.type_expr;
-                        UNAM_ASSERT(param->type == NODE_FUNC_PARAMETER, "lambda parameter must have NODE_FUNC_PARAMETER type");
-                        UNAM_ASSERT(param_type != NULL && (param_type->type == NODE_CONCRETE_TYPE || param_type->type == NODE_GENERIC_TYPE), "invalid lambda param type");
-                        da_analyze_frames_append(&stack, (AnalyzeFrame){ param, PHASE_ENTER });
-                        param = param->next;
-                    }
-                    da_analyze_frames_reverse_mode_end(&stack);
-                } else if (phase == PHASE_EXIT) {
-                    UNAM_DEBUG("<- end lambda\n");
-
-                    // Infer return type from body if not explicitly specified
-                    if (node->as.lambda.body && node->as.lambda.body->evaluates_to_type) {
-                        ASTNode* body_type = node->as.lambda.body->evaluates_to_type;
-                        if (node->as.lambda.return_type) {
-                            if (!types_are_equal(node->as.lambda.return_type, body_type)) {
-                                report_error(
-                                    node, "Lambda return type '%s' doesn't match body type '%s'",
-                                    node_repr(node->as.lambda.return_type), node_repr(body_type)
-                                );
-                            }
-                        } else {
-                            node->as.lambda.return_type = body_type;
-                        }
-                    }
-
-                    // The lambda node itself evaluates to the lambda (so it can be called)
-                    node->evaluates_to_type = node;
-                    pop_scope(&current_scope);
-                }
-                break;
-            };
             default: {
                 UNAM_DEBUG("Unknown type %d", node->type);
                 exit(69);

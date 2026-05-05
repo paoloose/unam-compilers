@@ -278,14 +278,24 @@ expr:
 block_expr:
     control_expr { $$ = $1; }
     | '{' block_body '}' {
-        $$ = create_node(NODE_STMT_LIST);
-        $$->as.stmt_list.body = $2;
+        $$ = $2;
     }
     | FN '(' lambda_args ')' return_type_opt '{' block_body '}' {
-        $$ = create_node(NODE_LAMBDA);
-        $$->as.lambda.params = $3;
-        $$->as.lambda.return_type = $5;
-        $$->as.lambda.body = $7;
+        $$ = create_node(NODE_FUNCTION);
+        $$->as.function.name = ast_strdup("<lambda>");
+        $$->as.function.is_lambda = true;
+        $$->as.function.params = $3;
+        $$->as.function.return_type = $5;
+        $$->as.function.body = $7;
+    }
+    | FN '<' type_params_list '>' '(' lambda_args ')' return_type_opt '{' block_body '}' {
+        $$ = create_node(NODE_FUNCTION);
+        $$->as.function.name = ast_strdup("<lambda>");
+        $$->as.function.is_lambda = true;
+        $$->as.function.params = $6;
+        $$->as.function.generic_args = $3;
+        $$->as.function.return_type = $8;
+        $$->as.function.body = $10;
     }
     ;
 

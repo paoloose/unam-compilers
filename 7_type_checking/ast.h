@@ -17,42 +17,40 @@ static inline char* ast_strdup(const char* s) {
 typedef enum {
     /* 0*/ NODE_PROGRAM,
     /* 1*/ NODE_FUNCTION,
-    /* 2*/ NODE_STMT_LIST,
-    /* 3*/ NODE_LET,
-    /* 4*/ NODE_ASSIGN,
-    /* 5*/ NODE_IF,
-    /* 6*/ NODE_FOR,
-    /* 7*/ NODE_LOOP,
-    /* 8*/ NODE_MATCH,
-    /* 9*/ NODE_MATCH_ARM,
-    /*10*/ NODE_RETURN,
-    /*11*/ NODE_BREAK,
-    /*12*/ NODE_IDENT_LIST,
-    /*13*/ NODE_FUNC_PARAMETER,
-    /*14*/ NODE_BINARY_OP,
-    /*15*/ NODE_UNARY_OP,
-    /*16*/ NODE_IDENTIFIER,
-    /*17*/ NODE_CONCRETE_TYPE,
-    /*18*/ NODE_GENERIC_TYPE, // generic types are determined in semantic analysis phase
-    /*19*/ NODE_INT_LITERAL,
-    /*20*/ NODE_FLOAT_LITERAL,
-    /*21*/ NODE_BOOL_LITERAL,
-    /*22*/ NODE_STRING_LITERAL,
-    /*23*/ NODE_CALL,
-    /*24*/ NODE_ENUM_DECL,
-    /*25*/ NODE_ENUM_VARIANT,
-    /*26*/ NODE_STRUCT_DECL,
-    /*27*/ NODE_STRUCT_LITERAL,
-    /*28*/ NODE_STRUCT_FIELD,
-    /*29*/ NODE_LIST_LITERAL,
-    /*30*/ NODE_LIST_PATTERN,
-    /*31*/ NODE_PIPELINE,
-    /*32*/ NODE_PLACEHOLDER, // '_'
-    /*33*/ NODE_MEMBER_ACCESS, // '.'
-    /*34*/ NODE_RANGE,
-    /*35*/ NODE_LAMBDA,
-    /*36*/ NODE_SCOPE,
-    /*37*/ NODE_FOREACH,
+    /* 2*/ NODE_LET,
+    /* 3*/ NODE_ASSIGN,
+    /* 4*/ NODE_IF,
+    /* 5*/ NODE_FOR,
+    /* 6*/ NODE_LOOP,
+    /* 7*/ NODE_MATCH,
+    /* 8*/ NODE_MATCH_ARM,
+    /* 9*/ NODE_RETURN,
+    /*10*/ NODE_BREAK,
+    /*11*/ NODE_IDENT_LIST,
+    /*12*/ NODE_FUNC_PARAMETER,
+    /*13*/ NODE_BINARY_OP,
+    /*14*/ NODE_UNARY_OP,
+    /*15*/ NODE_IDENTIFIER,
+    /*16*/ NODE_CONCRETE_TYPE,
+    /*17*/ NODE_GENERIC_TYPE, // generic types are determined in semantic analysis phase
+    /*18*/ NODE_INT_LITERAL,
+    /*19*/ NODE_FLOAT_LITERAL,
+    /*20*/ NODE_BOOL_LITERAL,
+    /*21*/ NODE_STRING_LITERAL,
+    /*22*/ NODE_CALL,
+    /*23*/ NODE_ENUM_DECL,
+    /*24*/ NODE_ENUM_VARIANT,
+    /*25*/ NODE_STRUCT_DECL,
+    /*26*/ NODE_STRUCT_LITERAL,
+    /*27*/ NODE_STRUCT_FIELD,
+    /*28*/ NODE_LIST_LITERAL,
+    /*29*/ NODE_LIST_PATTERN,
+    /*30*/ NODE_PIPELINE,
+    /*31*/ NODE_PLACEHOLDER, // '_'
+    /*32*/ NODE_MEMBER_ACCESS, // '.'
+    /*33*/ NODE_RANGE,
+    /*34*/ NODE_SCOPE,
+    /*35*/ NODE_FOREACH,
 } NodeType;
 
 // note: I may use a union in the future to save some memory
@@ -104,15 +102,13 @@ struct ASTNode {
 
         /* NODE_FUNCTION */
         struct {
-            char* name;
+            char* name;              /* "<lambda>" for anonymous functions */
+            bool is_lambda;          /* true for anonymous functions */
             ASTNode* params;         /* call_args */
             ASTNode* generic_args;   /* type params */
             ASTNode* return_type;
             ASTNode* body;
         } function;
-
-        /* NODE_STMT_LIST */
-        struct { ASTNode* body; } stmt_list;
 
         /* NODE_SCOPE */
         struct { ASTNode* body; } scope;
@@ -316,12 +312,6 @@ struct ASTNode {
             ASTNode* end;
         } range;
 
-        /* NODE_LAMBDA */
-        struct {
-            ASTNode* params;
-            ASTNode* return_type;
-            ASTNode* body;
-        } lambda;
 
     } as;
 };

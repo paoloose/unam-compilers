@@ -128,14 +128,14 @@ void print_ast(ASTNode* node, int indent) {
     PRINT_INDEN(indent - 1);
 
     const char* type_names[] = {
-        "NODE_PROGRAM", "NODE_FUNCTION", "NODE_STMT_LIST", "NODE_LET", "NODE_ASSIGN",
+        "NODE_PROGRAM", "NODE_FUNCTION", "NODE_LET", "NODE_ASSIGN",
         "NODE_IF", "NODE_FOR", "NODE_LOOP", "NODE_MATCH",
         "NODE_MATCH_ARM", "NODE_RETURN", "NODE_BREAK", "NODE_IDENT_LIST", "NODE_FUNC_PARAMETER",
         "NODE_BINARY_OP", "NODE_UNARY_OP", "NODE_IDENTIFIER", "NODE_CONCRETE_TYPE", "NODE_GENERIC_TYPE",
         "NODE_INT_LITERAL", "NODE_FLOAT_LITERAL", "NODE_BOOL_LITERAL", "NODE_STRING_LITERAL", "NODE_CALL",
         "NODE_ENUM_DECL", "NODE_ENUM_VARIANT", "NODE_STRUCT_DECL", "NODE_STRUCT_LITERAL", "NODE_STRUCT_FIELD",
         "NODE_LIST_LITERAL", "NODE_LIST_PATTERN", "NODE_PIPELINE", "NODE_PLACEHOLDER", "NODE_MEMBER_ACCESS",
-        "NODE_RANGE", "NODE_LAMBDA", "NODE_SCOPE", "NODE_FOREACH"
+        "NODE_RANGE", "NODE_SCOPE", "NODE_FOREACH"
     };
 
     printf("[%s]", type_names[node->type]);
@@ -164,9 +164,7 @@ void print_ast(ASTNode* node, int indent) {
             print_ast(node->as.function.return_type, indent + 1);
             print_ast(node->as.function.body, indent + 1);
             break;
-        case NODE_STMT_LIST:
-            print_ast(node->as.stmt_list.body, indent + 1);
-            break;
+
         case NODE_SCOPE:
             print_ast(node->as.scope.body, indent + 1);
             break;
@@ -268,11 +266,6 @@ void print_ast(ASTNode* node, int indent) {
         case NODE_RANGE:
             print_ast(node->as.range.start, indent + 1);
             print_ast(node->as.range.end, indent + 1);
-            break;
-        case NODE_LAMBDA:
-            print_ast(node->as.lambda.params, indent + 1);
-            print_ast(node->as.lambda.return_type, indent + 1);
-            print_ast(node->as.lambda.body, indent + 1);
             break;
         default:
             break;
