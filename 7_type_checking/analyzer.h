@@ -10,6 +10,17 @@ typedef enum EnnuyeuxType {
     TYPE_GENERIC,
 } EnnuyeuxType;
 
+typedef enum {
+    SEVERITY_ERROR,
+    SEVERITY_WARNING
+} Severity;
+
+typedef struct {
+    SourceLoc loc;
+    char* message;
+    Severity severity;
+} SemanticDiagnostic;
+
 typedef enum SymbolKind {
     SYMBOL_KIND_VARIABLE,
     SYMBOL_KIND_CONSTANT,
@@ -60,19 +71,18 @@ typedef struct {
 // Symbol table entry
 typedef struct SymbolTableEntry {
     const char* name;
-    // SymbolKind kind;
-    // SymbolTypeData type_data;
-
-    // struct SymbolTableEntry* next;
-
+    int depth;
     ASTNode* node; // type information
     struct SymbolTableEntry* next;
 } SymbolTableEntry;
 
 // Scope that we can push and pop from
 typedef struct Scope {
+    int depth;
     SymbolTableEntry* symbols;
     struct Scope* parent;
 } Scope;
 
 bool analyze_semantics(ASTNode* root);
+void report_error(ASTNode* node, const char* format, ...);
+void report_warning(ASTNode* node, const char* format, ...);

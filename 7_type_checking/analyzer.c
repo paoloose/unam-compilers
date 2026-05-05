@@ -9,34 +9,44 @@
 #include "darray.h"
 #include "builtins.h"
 
-da_cstr semantic_errors;
+da_diagnostics diagnostics;
+
+static void report_diagnostic(ASTNode* node, Severity severity, const char* format, va_list args) {
+    va_list args_copy;
+    va_copy(args_copy, args);
+    int length = vsnprintf(NULL, 0, format, args_copy);
+    va_end(args_copy);
+
+    char* message = malloc(length + 1);
+    vsnprintf(message, length + 1, format, args);
+
+    SemanticDiagnostic diagnostic = {
+        .loc = node ? node->loc : (SourceLoc){0, 0, 0},
+        .message = message,
+        .severity = severity
+    };
+
+    da_diagnostics_append(&diagnostics, diagnostic);
+}
 
 void report_error(ASTNode* node, const char* format, ...) {
     va_list args;
     va_start(args, format);
-    int length = vsnprintf(NULL, 0, format, args);
+    report_diagnostic(node, SEVERITY_ERROR, format, args);
     va_end(args);
-    char* message = malloc(length + 1);
+}
+
+void report_warning(ASTNode* node, const char* format, ...) {
+    va_list args;
     va_start(args, format);
-    vsnprintf(message, length + 1, format, args);
+    report_diagnostic(node, SEVERITY_WARNING, format, args);
     va_end(args);
-
-    char* final_message;
-    if (node) {
-        int len = snprintf(NULL, 0, "[%d:%d] %s", node->loc.line, node->loc.col, message);
-        final_message = malloc(len + 1);
-        snprintf(final_message, len + 1, "[%d:%d] %s", node->loc.line, node->loc.col, message);
-        free(message);
-    } else {
-        final_message = message;
-    }
-
-    da_cstr_append(&semantic_errors, final_message);
 }
 
 static void push_scope(Scope** current_scope) {
     Scope* scope = calloc(1, sizeof(Scope));
     scope->parent = *current_scope;
+    scope->depth = (*current_scope) ? (*current_scope)->depth + 1 : 0;
     *current_scope = scope;
 }
 
@@ -185,6 +195,7 @@ void add_symbol_unchecked(Scope* current_scope, const char* name, ASTNode* type_
     SymbolTableEntry* sym = calloc(1, sizeof(SymbolTableEntry));
     sym->name = ast_strdup(name);
     sym->node = type_node;
+    sym->depth = current_scope->depth;
     sym->next = current_scope->symbols;
     current_scope->symbols = sym;
 
@@ -403,15 +414,25 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
 
                     // Infer return type from body if not explicitly specified
                     ASTNode* body_type = node->as.function.body->evaluates_to_type;
-                    if (node->as.function.return_type && body_type) {
-                        if (!types_are_equal(node->as.function.return_type, body_type)) {
-                            report_error(
-                                node, "Function '%s' return type '%s' doesn't match body type '%s'",
-                                func_name, node_repr(node->as.function.return_type), node_repr(body_type)
-                            );
+                    if (body_type) {
+                        if (node->as.function.return_type) {
+                            if (!types_are_equal(node->as.function.return_type, body_type)) {
+                                report_error(
+                                    node, "Function '%s' return type '%s' doesn't match body type '%s'",
+                                    func_name, node_repr(node->as.function.return_type), node_repr(body_type)
+                                );
+                            }
+                        } else {
+                            node->as.function.return_type = body_type;
                         }
                     } else {
-                        node->as.function.return_type = body_type;
+                        // Means a type was expected, but didn't return anything
+                        if (node->as.function.return_type) {
+                            report_error(
+                                node, "Function '%s' expected a return type '%s', but body returned void instead",
+                                func_name, node_repr(node->as.function.return_type)
+                            );
+                        }
                     }
                 }
                 break;
@@ -855,25 +876,25 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
 
                         // The funciton->return_type property store its explicit return type, if specified
                         ASTNode* actual_return_type = bound_function->as.function.return_type;
-
                         // The `return <thing>;` value
-                        ASTNode* returning_type = node->as.return_stmt.value;
-                        if (returning_type) {
-                            ASTNode* evaluated_type = returning_type->evaluates_to_type;
+                        ASTNode* returning_value = node->as.return_stmt.value;
+
+                        if (returning_value) {
+                            ASTNode* returning_type = returning_value->evaluates_to_type;
 
                             if (actual_return_type) {
                                 // Check against it
-                                if (!types_are_equal(actual_return_type, evaluated_type)) {
+                                if (!types_are_equal(actual_return_type, returning_type)) {
                                     report_error(
-                                        returning_type, "Type of return '%s' and function signature '%s' don't match",
-                                        node_repr(evaluated_type), node_repr(actual_return_type)
+                                        returning_value, "Type of return '%s' and function signature '%s' don't match",
+                                        node_repr(returning_type), node_repr(actual_return_type)
                                     );
                                 }
                             } else {
-                                UNAM_DEBUG("no explicit return type found\n");
                                 // Function has no return type, so try to infer it by mutating the function node
-                                bound_function->as.function.return_type = evaluated_type;
+                                // So this return will actually set its type
                             }
+                            bound_function->as.function.body->evaluates_to_type = returning_type;
                         } else {
                             // Used didn't returned something, but function was expected the opposite
                             if (actual_return_type != NULL) {
@@ -1114,7 +1135,7 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
             case NODE_IDENTIFIER: {
                 SymbolTableEntry* identifier = find_symbol(current_scope, node->as.ident.name);
                 if (!identifier) {
-                    report_error(node, "Referencing identifier '%s' doesn't exists", node_repr(node));
+                    report_error(node, "Identifier '%s' was not declared in this scope", node_repr(node));
                     break;
                 }
                 if (identifier->node) {
@@ -1341,22 +1362,44 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
 
 bool analyze_semantics(ASTNode* root) {
     printf("\n🪰 Starting Semantic Analysis...\n");
-    da_cstr_init(&semantic_errors, 16);
+    da_diagnostics_init(&diagnostics, 16);
     Scope* current_scope = NULL;
     push_scope(&current_scope);
 
     semantic_analyze(current_scope, root);
     pop_scope(&current_scope);
 
-    bool success = true;
-    if (semantic_errors.length > 0) {
-        success = false;
-        fprintf(stderr, UNAM_RED "\nErrors:\n" UNAM_RESET);
-        for (size_t i = 0; i < semantic_errors.length; i++) {
-            fprintf(stderr, "  At %s\n", semantic_errors.data[i]);
-            free(semantic_errors.data[i]);
+    int error_count = 0;
+    int warning_count = 0;
+    for (size_t i = 0; i < diagnostics.length; i++) {
+        if (diagnostics.data[i].severity == SEVERITY_ERROR) error_count++;
+        else warning_count++;
+    }
+
+    if (warning_count > 0) {
+        fprintf(stderr, UNAM_YELLOW "\nWarnings:\n" UNAM_RESET);
+        for (size_t i = 0; i < diagnostics.length; i++) {
+            if (diagnostics.data[i].severity == SEVERITY_WARNING) {
+                fprintf(stderr, "  [%d:%d] %s\n",
+                    diagnostics.data[i].loc.line, diagnostics.data[i].loc.col, diagnostics.data[i].message);
+            }
         }
     }
-    da_free(&semantic_errors);
-    return success;
+
+    if (error_count > 0) {
+        fprintf(stderr, UNAM_RED "\nErrors:\n" UNAM_RESET);
+        for (size_t i = 0; i < diagnostics.length; i++) {
+            if (diagnostics.data[i].severity == SEVERITY_ERROR) {
+                fprintf(stderr, "  [%d:%d] %s\n",
+                    diagnostics.data[i].loc.line, diagnostics.data[i].loc.col, diagnostics.data[i].message);
+            }
+        }
+    }
+
+    for (size_t i = 0; i < diagnostics.length; i++) {
+        free(diagnostics.data[i].message);
+    }
+    da_free(&diagnostics);
+
+    return error_count == 0;
 }
