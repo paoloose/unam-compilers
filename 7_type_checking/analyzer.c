@@ -703,7 +703,10 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
                             report_error(func, "Function is not defined: '%s'", func_name);
                             break;
                         }
-                        if (resolved_func->node->type != NODE_FUNCTION && resolved_func->node->type != NODE_FUNC_PARAMETER && resolved_func->node->type != NODE_ENUM_VARIANT) {
+                        if (resolved_func->node->type != NODE_FUNCTION &&
+                            resolved_func->node->type != NODE_FUNC_PARAMETER &&
+                            resolved_func->node->type != NODE_ENUM_VARIANT &&
+                            resolved_func->node->type != NODE_SIGNATURE_TYPE) {
                             report_error(func, "Trying to call a non function '%s'", node_repr(func->evaluates_to_type));
                             break;
                         }
@@ -810,9 +813,6 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
                             goto outer_loop;
                         }
 
-                        if (passed_arg->evaluates_to_type->type == NODE_PLAIN_TYPE) {
-                             UNAM_ASSERT(find_symbol(current_scope, passed_arg->evaluates_to_type->as.type.name) != NULL, "function must return a type at this point");
-                        }
                         infer_specializations(param_type, passed_arg->evaluates_to_type, &specialized_params_types, &specialized_params_values);
 
                         ASTNode* dg = specialized_params_types.length > 0 ? specialized_params_types.data[0] : NULL;
@@ -886,7 +886,17 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
                     const char* operand_type_name = assign_value->evaluates_to_type->as.type.name;
                     const char* op = node->as.assign.op;
 
-                    if (strcmp(op, "=") == 0) {}
+                    if (strcmp(op, "=") == 0) {
+                        ASTNode* target_type = node->as.assign.target->evaluates_to_type;
+                        ASTNode* value_type = assign_value->evaluates_to_type;
+                        if (target_type && value_type) {
+                            if (!types_are_equal(target_type, value_type)) {
+                                report_error(node, "Cannot assign type %s to variable of type %s",
+                                    node_repr(value_type), node_repr(target_type));
+                            }
+                        }
+                        node->evaluates_to_type = target_type;
+                    }
                     else {
                         bool operand_is_int = strcmp(operand_type_name, "int") == 0;
                         bool operand_is_float = strcmp(operand_type_name, "float") == 0;
@@ -1274,11 +1284,6 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
                         }
                     }
                 }
-                break;
-            };
-            case NODE_IDENT_LIST: {
-                UNAM_DEBUG("NODE_IDENT_LIST not implemented");
-                exit(69);
                 break;
             };
             case NODE_BINARY_OP: {
@@ -1761,11 +1766,6 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
                     list_type->as.type.generic_args = last_element_type;
                     node->evaluates_to_type = list_type;
                 }
-                break;
-            };
-            case NODE_LIST_PATTERN: {
-                UNAM_DEBUG("NODE_LIST_PATTERN not implemented");
-                exit(69);
                 break;
             };
             case NODE_PIPELINE: {

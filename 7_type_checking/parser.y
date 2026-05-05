@@ -40,6 +40,7 @@ ASTNode* root;
 %type <node_val> block_body stmt_seq stmt expr match_arms match_arm pattern type_expr type_params_list
 %type <node_val> expr_list call_args func_param lambda_args struct_fields struct_field enum_variants enum_variant
 %type <node_val> list_literal control_expr struct_literal struct_literal_fields struct_literal_field
+%type <node_val> pattern_list pattern_item pattern_variant
 %type <node_val> return_type_opt expr_opt for_init let_stmt block_expr expr_no_block generic_type_params type_params_list_opt
 
 %right '=' ADD_ASSIGN SUB_ASSIGN MUL_ASSIGN DIV_ASSIGN MOD_ASSIGN
@@ -212,6 +213,7 @@ block_body:
     }
     ;
 
+
 stmt_seq:
     stmt { $$ = $1; }
     | stmt_seq stmt {
@@ -380,16 +382,21 @@ expr_no_block:
     | '-' expr %prec '!' { $$ = create_node(NODE_UNARY_OP); $$->as.unary.op = ast_strdup("-"); $$->as.unary.operand = $2; }
     | '(' expr ')' { $$ = $2; }
     | expr '(' expr_list ')' {
-        $$ = create_node(NODE_CALL);
-        if ($1->type == NODE_IDENTIFIER) {
-            $$->as.call.debug_name = ast_strdup($1->as.ident.name);
+        if ($1->type == NODE_MEMBER_ACCESS && strcmp($1->as.member.op, "::") == 0) {
+            $1->as.member.args = $3;
+            $$ = $1;
+        } else {
+            $$ = create_node(NODE_CALL);
+            if ($1->type == NODE_IDENTIFIER) {
+                $$->as.call.debug_name = ast_strdup($1->as.ident.name);
+            }
+            else {
+                // Must evaluate before calling!
+                $$->as.call.debug_name = ast_strdup("<dynamic>");
+            }
+            $$->as.call.callee = $1;
+            $$->as.call.args = $3;
         }
-        else {
-            // Must evaluate before calling!
-            $$->as.call.debug_name = ast_strdup("<dynamic>");
-        }
-        $$->as.call.callee = $1;
-        $$->as.call.args = $3;
     }
     | expr COLONCOLON IDENT {
         $$ = create_node(NODE_MEMBER_ACCESS);
@@ -633,20 +640,65 @@ match_arm:
     ;
 
 pattern:
-    expr { $$ = $1; }
-    | '[' expr_list ',' DOTDOT IDENT ']' {
+    INT_LIT { $$ = create_leaf_int($1); }
+    | FLOAT_LIT { $$ = create_leaf_float($1); }
+    | BOOL_LIT { $$ = create_leaf_bool($1); }
+    | STRING_LIT { $$ = create_leaf_str($1); }
+    | pattern_variant { $$ = $1; }
+    | INT_LIT DOTDOT INT_LIT {
+        $$ = create_node(NODE_RANGE);
+        $$->as.range.inclusive = 0;
+        $$->as.range.start = create_leaf_int($1);;
+        $$->as.range.end = create_leaf_int($3);;
+    }
+    | INT_LIT DOTDOT '=' INT_LIT {
+        $$ = create_node(NODE_RANGE);
+        $$->as.range.inclusive = 1;
+        $$->as.range.start = create_leaf_int($1);;
+        $$->as.range.end = create_leaf_int($4);;
+    }
+    | '[' pattern_list ']' {
         $$ = create_node(NODE_LIST_PATTERN);
-        ASTNode* n = $2;
-        if (n) {
-            while(n->next) n = n->next;
-            n->next = create_node(NODE_PLACEHOLDER);
-            n->next->as.placeholder.name = ast_strdup($5);
-            $$->as.list_pattern.items = $2;
-        }
-        else {
-            $$->as.list_pattern.items = create_node(NODE_PLACEHOLDER);
-            $$->as.list_pattern.items->as.placeholder.name = ast_strdup($5);
-        }
+        $$->as.list_pattern.items = $2;
+    }
+    | pattern_variant '(' pattern_list ')' {
+        $$ = create_node(NODE_ENUM_PATTERN);
+        $$->as.enum_pattern.variant = $1;
+        $$->as.enum_pattern.args = $3;
+    }
+    | '(' pattern ')' { $$ = $2; }
+    ;
+
+pattern_variant:
+    IDENT { $$ = create_leaf_id($1); }
+    | IDENT COLONCOLON IDENT {
+        $$ = create_node(NODE_MEMBER_ACCESS);
+        $$->as.member.object = create_leaf_id($1);
+        $$->as.member.op = ast_strdup("::");
+        $$->as.member.member = create_leaf_id($3);
+    }
+    ;
+
+pattern_list:
+    /* empty */ { $$ = NULL; }
+    | pattern_item { $$ = $1; }
+    | pattern_list ',' pattern_item {
+        ASTNode* n = $1;
+        while(n->next) n = n->next;
+        n->next = $3;
+        $$ = $1;
+    }
+    ;
+
+pattern_item:
+    pattern { $$ = $1; }
+    | DOTDOT {
+        $$ = create_node(NODE_PATTERN_CONS);
+        $$->as.pattern_cons.name = NULL;
+    }
+    | DOTDOT IDENT {
+        $$ = create_node(NODE_PATTERN_CONS);
+        $$->as.pattern_cons.name = ast_strdup($2);
     }
     ;
 
