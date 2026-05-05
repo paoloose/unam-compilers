@@ -498,6 +498,11 @@ control_expr:
         $$->as.if_expr.then_body = $6;
         $$->as.if_expr.else_body = $9;
     }
+    | MATCH expr '{' match_arms '}' {
+        $$ = create_node(NODE_MATCH);
+        $$->as.match_expr.subject = $2;
+        $$->as.match_expr.arms = $4;
+    }
     | MATCH '(' expr ')' '{' match_arms '}' {
         $$ = create_node(NODE_MATCH);
         $$->as.match_expr.subject = $3;
