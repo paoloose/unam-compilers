@@ -32,6 +32,7 @@ typedef enum {
     /*14*/ NODE_UNARY_OP,
     /*15*/ NODE_IDENTIFIER,
     /*16*/ NODE_PLAIN_TYPE,
+    /* 17*/ NODE_SIGNATURE_TYPE,
     /*18*/ NODE_INT_LITERAL,
     /*19*/ NODE_FLOAT_LITERAL,
     /*20*/ NODE_BOOL_LITERAL,
@@ -237,6 +238,12 @@ struct ASTNode {
             ASTNode* callee;
             ASTNode* args;
         } call;
+
+        /* NODE_SIGNATURE_TYPE */
+        struct {
+            ASTNode* params;
+            ASTNode* return_type;
+        } signature;
 
         /* NODE_ENUM_DECL */
         struct {

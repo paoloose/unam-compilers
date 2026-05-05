@@ -61,6 +61,21 @@ static void build_repr(ASTNode* node) {
                 append_repr(">");
             }
             break;
+        case NODE_SIGNATURE_TYPE:
+            append_repr("(");
+            ASTNode* param = node->as.signature.params;
+            while (param) {
+                build_repr(param);
+                if (param->next) append_repr(", ");
+                param = param->next;
+            }
+            append_repr(")->");
+            if (node->as.signature.return_type) {
+                build_repr(node->as.signature.return_type);
+            } else {
+                append_repr("void");
+            }
+            break;
         case NODE_INT_LITERAL:
             snprintf(temp, sizeof(temp), "%d", node->as.int_lit.value);
             append_repr(temp);
@@ -105,15 +120,22 @@ static void build_repr(ASTNode* node) {
             append_repr("{ scope }");
             break;
         default:
+            snprintf(temp, sizeof(temp), "<node %d>", node->type);
+            append_repr(temp);
             break;
     }
 }
 
 char* node_repr(ASTNode* node) {
+    if (!node) return "void";
     current_buf_idx = (current_buf_idx + 1) % NUM_REPR_BUFS;
     repr_len = 0;
     repr_bufs[current_buf_idx][0] = '\0';
     build_repr(node);
+    if (repr_bufs[current_buf_idx][0] == '\0') {
+        // Fallback if build_repr didn't append anything
+        snprintf(repr_bufs[current_buf_idx], sizeof(repr_bufs[0]), "<node %d>", node->type);
+    }
     return repr_bufs[current_buf_idx];
 }
 
@@ -128,7 +150,7 @@ void print_ast(ASTNode* node, int indent) {
         "NODE_PROGRAM", "NODE_FUNCTION", "NODE_LET", "NODE_ASSIGN",
         "NODE_IF", "NODE_FOR", "NODE_LOOP", "NODE_MATCH",
         "NODE_MATCH_ARM", "NODE_RETURN", "NODE_BREAK", "NODE_IDENT_LIST", "NODE_FUNC_PARAMETER",
-        "NODE_BINARY_OP", "NODE_UNARY_OP", "NODE_IDENTIFIER",        "NODE_PLAIN_TYPE",
+        "NODE_BINARY_OP", "NODE_UNARY_OP", "NODE_IDENTIFIER", "NODE_PLAIN_TYPE", "NODE_SIGNATURE_TYPE",
         "NODE_INT_LITERAL", "NODE_FLOAT_LITERAL", "NODE_BOOL_LITERAL", "NODE_STRING_LITERAL", "NODE_CALL",
         "NODE_ENUM_DECL", "NODE_ENUM_VARIANT", "NODE_STRUCT_DECL", "NODE_STRUCT_LITERAL", "NODE_STRUCT_FIELD",
         "NODE_LIST_LITERAL", "NODE_LIST_PATTERN", "NODE_PIPELINE", "NODE_PLACEHOLDER", "NODE_MEMBER_ACCESS",
@@ -157,7 +179,7 @@ void print_ast(ASTNode* node, int indent) {
             break;
         case NODE_FUNCTION:
             if (node->as.function.return_type) {
-                printf("returns(%s)", node->as.function.return_type->as.type.name);
+                printf(" returns: %s", node_repr(node->as.function.return_type));
             }
             print_ast(node->as.function.params, indent + 1);
             print_ast(node->as.function.generic_args, indent + 1);

@@ -40,7 +40,7 @@ ASTNode* root;
 %type <node_val> block_body stmt_seq stmt expr match_arms match_arm pattern type_expr type_params_list
 %type <node_val> expr_list call_args func_param lambda_args struct_fields struct_field enum_variants enum_variant
 %type <node_val> list_literal control_expr struct_literal struct_literal_fields struct_literal_field
-%type <node_val> return_type_opt expr_opt for_init let_stmt block_expr expr_no_block generic_type_params
+%type <node_val> return_type_opt expr_opt for_init let_stmt block_expr expr_no_block generic_type_params type_params_list_opt
 
 %right '=' ADD_ASSIGN SUB_ASSIGN MUL_ASSIGN DIV_ASSIGN MOD_ASSIGN
 %left OR
@@ -622,6 +622,16 @@ type_expr:
         $$->as.type.name = ast_strdup($1);
         $$->as.type.generic_args = $3;
     }
+    | '(' type_params_list_opt ')' ARROW type_expr {
+        $$ = create_node(NODE_SIGNATURE_TYPE);
+        $$->as.signature.params = $2;
+        $$->as.signature.return_type = $5;
+    }
+    ;
+
+type_params_list_opt:
+    /* empty */ { $$ = NULL; }
+    | type_params_list { $$ = $1; }
     ;
 
 type_params_list:

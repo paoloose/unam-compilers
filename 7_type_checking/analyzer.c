@@ -43,7 +43,92 @@ void report_warning(ASTNode* node, const char* format, ...) {
     va_end(args);
 }
 
-static void push_scope(Scope** current_scope) {
+static ASTNode* get_function_signature(ASTNode* func) {
+    ASTNode* sig = create_node(NODE_SIGNATURE_TYPE);
+    ASTNode* p = func->as.function.params;
+    ASTNode* params_head = NULL;
+    ASTNode* params_tail = NULL;
+    while (p) {
+        ASTNode* p_type = create_node(p->as.func_param.type_expr->type);
+        p_type->as = p->as.func_param.type_expr->as;
+
+        if (!params_head) params_head = p_type;
+        else params_tail->next = p_type;
+        params_tail = p_type;
+
+        p = p->next;
+    }
+    sig->as.signature.params = params_head;
+    // Use the explicit return type or the body's evaluated type if not yet set
+    sig->as.signature.return_type = func->as.function.return_type;
+    if (!sig->as.signature.return_type && func->as.function.body) {
+        sig->as.signature.return_type = func->as.function.body->evaluates_to_type;
+    }
+    return sig;
+}
+
+void infer_specializations(ASTNode* expected, ASTNode* actual, da_astnodes* types, da_astnodes* values) {
+    if (!expected || !actual) return;
+    if (expected->type == NODE_PLAIN_TYPE) {
+        for (size_t i = 0; i < types->length; i++) {
+            if (strcmp(types->data[i]->as.type.name, expected->as.type.name) == 0) return;
+        }
+        da_astnodes_append(types, expected);
+        da_astnodes_append(values, actual);
+        // Link them for types_match (which expects a linked list)
+        if (values->length > 1) {
+            values->data[values->length - 2]->next = actual;
+        }
+        actual->next = NULL;
+    } else if (expected->type == NODE_SIGNATURE_TYPE && actual->type == NODE_SIGNATURE_TYPE) {
+        ASTNode* ep = expected->as.signature.params;
+        ASTNode* ap = actual->as.signature.params;
+        while (ep && ap) {
+            infer_specializations(ep, ap, types, values);
+            ep = ep->next;
+            ap = ap->next;
+        }
+        infer_specializations(expected->as.signature.return_type, actual->as.signature.return_type, types, values);
+    }
+}
+
+
+ASTNode* specialize_type(ASTNode* type, ASTNode* decl_gen, ASTNode* lit_gen) {
+    if (!type || !decl_gen || !lit_gen) return type;
+
+    if (type->type == NODE_PLAIN_TYPE) {
+        ASTNode* dg = decl_gen;
+        ASTNode* lg = lit_gen;
+        while (dg && lg) {
+            if (strcmp(dg->as.type.name, type->as.type.name) == 0) {
+                return lg;
+            }
+            dg = dg->next;
+            lg = lg->next;
+        }
+    } else if (type->type == NODE_SIGNATURE_TYPE) {
+        ASTNode* new_sig = create_node(NODE_SIGNATURE_TYPE);
+        ASTNode* p = type->as.signature.params;
+        ASTNode* head = NULL;
+        ASTNode* tail = NULL;
+        while (p) {
+            ASTNode* sp = specialize_type(p, decl_gen, lit_gen);
+            ASTNode* cp = create_node(sp->type);
+            cp->as = sp->as;
+            if (!head) head = cp;
+            else tail->next = cp;
+            tail = cp;
+            p = p->next;
+        }
+        new_sig->as.signature.params = head;
+        new_sig->as.signature.return_type = specialize_type(type->as.signature.return_type, decl_gen, lit_gen);
+        new_sig->evaluates_to_type = new_sig;
+        return new_sig;
+    }
+    return type;
+}
+
+void push_scope(Scope** current_scope) {
     Scope* scope = calloc(1, sizeof(Scope));
     scope->parent = *current_scope;
     scope->depth = (*current_scope) ? (*current_scope)->depth + 1 : 0;
@@ -63,6 +148,21 @@ static void pop_scope(Scope** current_scope) {
 bool types_match(ASTNode* expected, ASTNode* actual, ASTNode* decl_gen, ASTNode* lit_gen) {
     if (!expected && !actual) return true;
     if (!expected || !actual) return false;
+
+    // Handle function signatures
+    if (expected->type == NODE_SIGNATURE_TYPE) {
+        if (actual->type != NODE_SIGNATURE_TYPE) return false;
+        ASTNode* ep = expected->as.signature.params;
+        ASTNode* ap = actual->as.signature.params;
+        while (ep && ap) {
+            if (!types_match(ep, ap, decl_gen, lit_gen)) return false;
+            ep = ep->next;
+            ap = ap->next;
+        }
+        if (ep || ap) return false;
+        return types_match(expected->as.signature.return_type, actual->as.signature.return_type, decl_gen, lit_gen);
+    }
+    if (actual->type == NODE_SIGNATURE_TYPE) return false; // Expected was not a signature
 
     // Handle generic specialization for the expected type
     // If it's a plain type, it might be a generic parameter name
@@ -161,8 +261,8 @@ ASTNode* find_nearest_function(const da_astnodes* contexts_stack) {
 }
 
 ASTNode* find_nearest_breakable_context(const da_astnodes* contexts_stack) {
+    ASTNode* breakable_stmt = NULL;
     size_t i = contexts_stack->length;
-    ASTNode* breakable_stmt;
     while (i-->0) {
         ASTNode* entry = contexts_stack->data[i];
         if (entry->type == NODE_FOR || entry->type == NODE_FOREACH || entry->type == NODE_LOOP) {
@@ -171,39 +271,7 @@ ASTNode* find_nearest_breakable_context(const da_astnodes* contexts_stack) {
         }
     }
 
-    if (!breakable_stmt) return NULL;
-    ASTNode* last_scope;
-
-    i = contexts_stack->length;
-    while (i-->0) {
-        ASTNode* entry = contexts_stack->data[i];
-        if (entry->type == NODE_SCOPE) {
-            last_scope = entry;
-        }
-
-        switch (breakable_stmt->type) {
-            case NODE_FOR: {
-                if (breakable_stmt->as.for_expr.body == last_scope || breakable_stmt->as.for_expr.else_body == last_scope) {
-                    return last_scope;
-                }
-                break;
-            };
-            case NODE_FOREACH: {
-                if (breakable_stmt->as.foreach_expr.body == last_scope || breakable_stmt->as.foreach_expr.else_body == last_scope) {
-                    return last_scope;
-                }
-                break;
-            };
-            case NODE_LOOP: {
-                if (breakable_stmt->as.loop_expr.body == last_scope || breakable_stmt->as.loop_expr.else_body == last_scope) {
-                    return last_scope;
-                }
-                break;
-            };
-            default: UNAM_ASSERT(false, "unreachable");
-        }
-    }
-    return NULL;
+    return breakable_stmt;
 }
 
 ASTNode* find_nearest_scope(const da_astnodes* contexts_stack) {
@@ -257,7 +325,8 @@ void add_symbol_unchecked(Scope* current_scope, const char* name, ASTNode* type_
         case NODE_LET: {
             break;
         };
-        case NODE_PLAIN_TYPE: {
+        case NODE_PLAIN_TYPE:
+        case NODE_SIGNATURE_TYPE: {
             break;
         }
         default: {
@@ -346,9 +415,7 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
                         }
                         if (last_stmt->type == NODE_RETURN && !last_stmt->as.return_stmt.is_explicit) {
                             node->evaluates_to_type = last_stmt->as.return_stmt.value ? last_stmt->as.return_stmt.value->evaluates_to_type : NULL;
-                        }
-                        bool last_stmt_may_evaluate = last_stmt->type == NODE_IF || last_stmt->type == NODE_LOOP || last_stmt->type == NODE_FOR || last_stmt->type == NODE_FOREACH;
-                        if (last_stmt_may_evaluate && last_stmt->evaluates_to_type) {
+                        } else {
                             node->evaluates_to_type = last_stmt->evaluates_to_type;
                         }
                     }
@@ -361,7 +428,7 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
                 ASTNode* param_type = node->as.func_param.type_expr;
                 // First we analyze the type of the parameter
                 const char* parameter_name = node->as.func_param.name;
-                const char* parameter_type_name = param_type->as.type.name;
+                const char* parameter_type_name = (param_type && param_type->type == NODE_PLAIN_TYPE) ? param_type->as.type.name : NULL;
 
                 if (phase == PHASE_ENTER) {
                     UNAM_DEBUG("  arg name=%s\n", parameter_name);
@@ -373,11 +440,15 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
                     da_analyze_frames_append(&stack, (AnalyzeFrame){ node, PHASE_EXIT });
                     da_analyze_frames_append(&stack, (AnalyzeFrame){ node->as.func_param.type_expr, PHASE_ENTER });
                 } else if (phase == PHASE_EXIT) {
-                    SymbolTableEntry* parameter_type = find_symbol(current_scope, parameter_type_name);
-                    if (!parameter_type || !parameter_type->node) {
-                        report_error(node, "Function parameter '%s' is using a type '%s' that doesn't exist", parameter_name, parameter_type_name);
-                    } else {
+                    if (param_type->type != NODE_PLAIN_TYPE) {
                         node->evaluates_to_type = param_type;
+                    } else {
+                        SymbolTableEntry* parameter_type = find_symbol(current_scope, parameter_type_name);
+                        if (!parameter_type || !parameter_type->node) {
+                            report_error(node, "Function parameter '%s' is using a type '%s' that doesn't exist", parameter_name, parameter_type_name);
+                        } else {
+                            node->evaluates_to_type = param_type;
+                        }
                     }
                 }
                 break;
@@ -413,7 +484,7 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
                     while (param) {
                         ASTNode* param_type = param->as.func_param.type_expr;
                         UNAM_ASSERT(param->type == NODE_FUNC_PARAMETER, "function parameter must have NODE_FUNC_PARAMETER type");
-                        UNAM_ASSERT(param_type != NULL && (param_type->type == NODE_PLAIN_TYPE), "invalid func_param type");
+                        UNAM_ASSERT(param_type != NULL && (param_type->type == NODE_PLAIN_TYPE || param_type->type == NODE_SIGNATURE_TYPE || param_type->type == NODE_STRUCT_DECL || param_type->type == NODE_ENUM_DECL), "invalid func_param type");
                         param = param->next;
                     }
 
@@ -458,6 +529,7 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
                             );
                         }
                     }
+                    node->evaluates_to_type = get_function_signature(node);
                 }
                 break;
             };
@@ -478,7 +550,7 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
                             report_error(func, "Function is not defined: '%s'", func_name);
                             break;
                         }
-                        if (resolved_func->node->type != NODE_FUNCTION) {
+                        if (resolved_func->node->type != NODE_FUNCTION && resolved_func->node->type != NODE_FUNC_PARAMETER && resolved_func->node->type != NODE_ENUM_VARIANT) {
                             report_error(func, "Trying to call a non function '%s'", node_repr(func->evaluates_to_type));
                             break;
                         }
@@ -501,11 +573,8 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
                         da_analyze_frames_append(&stack, (AnalyzeFrame){ node->as.call.args, PHASE_ENTER });
                     }
 
-                    // This means that the calling function is dynamic, so our priority is to evaluate it first!
-                    if (func->type != NODE_IDENTIFIER) {
-                        // We first analyze the function so that `evaluates_to_type` gets populated
-                        da_analyze_frames_append(&stack, (AnalyzeFrame){ func, PHASE_ENTER });
-                    }
+                    // We first analyze the function so that `evaluates_to_type` gets populated
+                    da_analyze_frames_append(&stack, (AnalyzeFrame){ func, PHASE_ENTER });
                 } else if (phase == PHASE_EXIT) {
                     ASTNode* calling_function = NULL;
 
@@ -518,38 +587,43 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
                     else {
                         // TODO(NOTE): write a test dynamic function calls
                         calling_function = func->evaluates_to_type;
-                        if (calling_function == NULL || (calling_function->type != NODE_FUNCTION && calling_function->type != NODE_ENUM_VARIANT)) {
+                        if (calling_function == NULL || (calling_function->type != NODE_FUNCTION && calling_function->type != NODE_ENUM_VARIANT && calling_function->type != NODE_SIGNATURE_TYPE)) {
                             report_error(func, "Trying to call a non function '%s'", node_repr(func->evaluates_to_type));
                         }
                     }
-                    // Set the call's evaluated type to the function's return type
-                    if (calling_function->type == NODE_FUNCTION) {
-                        node->evaluates_to_type = calling_function->as.function.return_type;
+                    da_astnodes specialized_params_types;  // generic types that are now specialized (NODE_PLAIN_TYPE)
+                    da_astnodes_init(&specialized_params_types, 4);
+                    da_astnodes specialized_params_values; // the actual types they have been specialized too (ANY)
+                    da_astnodes_init(&specialized_params_values, 4);
+
+                    ASTNode* signature = NULL;
+                    if (calling_function->type == NODE_SIGNATURE_TYPE) {
+                        signature = calling_function;
+                    } else if (calling_function->type == NODE_FUNCTION) {
+                        signature = calling_function->evaluates_to_type;
+                        if (signature->type != NODE_SIGNATURE_TYPE) {
+                             signature = get_function_signature(calling_function);
+                             calling_function->evaluates_to_type = signature;
+                        }
                     } else if (calling_function->type == NODE_ENUM_VARIANT) {
                         // A variant call evaluates to the enum type itself
-                        // We need to find the enum node. We can store it in the variant or find it.
-                        // For now, let's look it up in the variant's evaluates_to_type if we set it earlier.
-                        // Actually, I set variant->evaluates_to_type = enum_node for non-payload variants.
-                        // For payload variants, I set it to the variant itself.
-                        // Let's fix that in NODE_ENUM_VARIANT implementation.
                         node->evaluates_to_type = calling_function->evaluates_to_type;
+                        signature = NULL; // Special case for variants
+                    } else if (calling_function->evaluates_to_type && calling_function->evaluates_to_type->type == NODE_SIGNATURE_TYPE) {
+                        signature = calling_function->evaluates_to_type;
                     }
 
-                    // And now that we now a function is being called, we validate its arguments!
+                    // specialization darrays moved inside argument loop and return type specialization
 
+                    // And now that we now a function is being called, we validate its arguments!
                     ASTNode* expected_param = NULL;
-                    if (calling_function->type == NODE_FUNCTION) {
-                        expected_param = calling_function->as.function.params;
+                    if (signature) {
+                        expected_param = signature->as.signature.params;
                     } else if (calling_function->type == NODE_ENUM_VARIANT) {
                         expected_param = calling_function->as.enum_variant.payload_types;
                     }
 
                     ASTNode* passed_arg = node->as.call.args;
-
-                    da_astnodes specialized_params_types;  // generic types that are now specialized (NODE_PLAIN_TYPE)
-                    da_astnodes_init(&specialized_params_types, 4);
-                    da_astnodes specialized_params_values; // the actual types they have been specialized too (ANY)
-                    da_astnodes_init(&specialized_params_values, 4);
 
                     int passed_args_len = 0;
                     while (expected_param) {
@@ -568,7 +642,7 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
 
                         passed_args_len++;
                         int param_node_type = param_type->type;
-                        UNAM_ASSERT(param_node_type == NODE_PLAIN_TYPE || param_node_type == NODE_STRUCT_DECL || param_node_type == NODE_ENUM_DECL, "function argument must be of correct type");
+                        UNAM_ASSERT(param_node_type == NODE_PLAIN_TYPE || param_node_type == NODE_SIGNATURE_TYPE || param_node_type == NODE_STRUCT_DECL || param_node_type == NODE_ENUM_DECL, "function argument must be of correct type");
 
                         if (passed_arg->evaluates_to_type == NULL) {
                             report_error(passed_arg, "Passed argument #%d to function '%s' evalutes to void", passed_args_len, node_repr(node));
@@ -577,46 +651,37 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
 
                         if (passed_arg->evaluates_to_type->type != NODE_PLAIN_TYPE &&
                             passed_arg->evaluates_to_type->type != NODE_STRUCT_DECL &&
-                            passed_arg->evaluates_to_type->type != NODE_ENUM_DECL) {
+                            passed_arg->evaluates_to_type->type != NODE_ENUM_DECL &&
+                            passed_arg->evaluates_to_type->type != NODE_SIGNATURE_TYPE) {
                             report_error(passed_arg, "Passed argument #%d to function '%s' evaluates to %s, which is not a type", passed_args_len, node_repr(node), node_repr(passed_arg->evaluates_to_type));
                             goto outer_loop;
                         }
 
-                        UNAM_ASSERT(find_symbol(current_scope, passed_arg->evaluates_to_type->as.type.name) != NULL, "function must return a type at this point");
-                        if (param_type->type == NODE_PLAIN_TYPE) {
-                            bool already_specialized = false;
-                            size_t i = 0;
-                            for (; i < specialized_params_types.length; i++) {
-                                if (types_are_equal(specialized_params_types.data[i], param_type)) {
-                                    already_specialized = true;
-                                }
-                            }
-                            if (already_specialized) {
-                                ASTNode* specialized_type = specialized_params_types.data[i-1];
-                                ASTNode* specialized_to = specialized_params_values.data[i-1];
-                                if (!types_are_equal(passed_arg->evaluates_to_type, specialized_to)) {
-                                    report_error(
-                                        passed_arg,
-                                        "Generic type '%s' has already been specialized to type '%s', but passed type '%s'",
-                                        node_repr(specialized_type), node_repr(specialized_to), node_repr(passed_arg->evaluates_to_type)
-                                    );
-                                }
-                            } else {
-                                // register the specialization
-                                da_astnodes_append(&specialized_params_types, param_type);
-                                UNAM_ASSERT(passed_arg->evaluates_to_type->type == NODE_PLAIN_TYPE || passed_arg->evaluates_to_type->type == NODE_STRUCT_DECL || passed_arg->evaluates_to_type->type == NODE_ENUM_DECL, "specialization of type arguments must be done to a valid type");
-                                da_astnodes_append(&specialized_params_values, passed_arg->evaluates_to_type);
-                            }
-                        } else if (!types_are_equal(passed_arg->evaluates_to_type, param_type)) {
-                            report_error(passed_arg, "Expected type '%s', but passed type '%s'", node_repr(param_type), node_repr(passed_arg->evaluates_to_type));
+                        if (passed_arg->evaluates_to_type->type == NODE_PLAIN_TYPE) {
+                             UNAM_ASSERT(find_symbol(current_scope, passed_arg->evaluates_to_type->as.type.name) != NULL, "function must return a type at this point");
+                        }
+                        infer_specializations(param_type, passed_arg->evaluates_to_type, &specialized_params_types, &specialized_params_values);
+
+                        ASTNode* dg = specialized_params_types.length > 0 ? specialized_params_types.data[0] : NULL;
+                        ASTNode* lg = specialized_params_values.length > 0 ? specialized_params_values.data[0] : NULL;
+                        if (!types_match(param_type, passed_arg->evaluates_to_type, dg, lg)) {
+                             report_error(passed_arg, "Expected type '%s', but passed type '%s'", node_repr(param_type), node_repr(passed_arg->evaluates_to_type));
                         }
                         // Then it's okay
                         passed_arg = passed_arg->next;
                         expected_param = expected_param->next;
                     }
                     if (passed_arg != NULL) {
-                        report_error(node, "Passing more arguments than expected");
+                        report_error(node, "Passing more arguments than expected (passed %d)", passed_args_len);
                     }
+
+                    if (signature) {
+                        ASTNode* dg = specialized_params_types.length > 0 ? specialized_params_types.data[0] : NULL;
+                        ASTNode* lg = specialized_params_values.length > 0 ? specialized_params_values.data[0] : NULL;
+                        node->evaluates_to_type = specialize_type(signature->as.signature.return_type, dg, lg);
+                    }
+                    da_free(&specialized_params_types);
+                    da_free(&specialized_params_values);
                 }
                 outer_loop:
                 break;
@@ -721,6 +786,10 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
                 if (phase == PHASE_ENTER) {
                     da_astnodes_append(&contexts_stack, node);
                     da_analyze_frames_append(&stack, (AnalyzeFrame){ node, PHASE_EXIT });
+
+                    // Push a scope for the for loop (for the init variable)
+                    push_scope(&current_scope);
+
                     da_analyze_frames_append(&stack, (AnalyzeFrame){ node->as.for_expr.else_body, PHASE_ENTER });
                     da_analyze_frames_append(&stack, (AnalyzeFrame){ node->as.for_expr.body, PHASE_ENTER });
                     da_analyze_frames_append(&stack, (AnalyzeFrame){ node->as.for_expr.step, PHASE_ENTER });
@@ -752,19 +821,25 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
                             report_error(for_else_body, "If you define an else in your for loop, then it should evaluate to something");
                             break;
                         }
-                        if (!body_return_type) {
-                            report_error(for_body, "If you define an else in your for loop, then your body should evaluate to something");
-                            break;
-                        }
-                        if (!types_are_equal(body_return_type, else_body_return_type)) {
+                        if (body_return_type && !types_are_equal(body_return_type, else_body_return_type)) {
                             report_error(
-                                node, "Your for loops have two branches (then, else) that evaluate to different types: '%s' and '%s'",
-                                node_repr(for_body->evaluates_to_type), node_repr(for_else_body->evaluates_to_type)
+                                node, "Your for loop branches evaluate to different types: body is %s, else is %s",
+                                node_repr(body_return_type), node_repr(else_body_return_type)
                             );
-                            break;
+                        }
+                        if (!node->evaluates_to_type) {
+                            node->evaluates_to_type = else_body_return_type;
+                        } else if (!types_are_equal(node->evaluates_to_type, else_body_return_type)) {
+                            report_error(node, "Loop results are inconsistent: break returns %s but else returns %s", node_repr(node->evaluates_to_type), node_repr(else_body_return_type));
+                        }
+                    } else {
+                        if (!node->evaluates_to_type) {
+                            node->evaluates_to_type = body_return_type;
+                        } else if (body_return_type && !types_are_equal(node->evaluates_to_type, body_return_type)) {
+                            report_error(node, "Loop results are inconsistent: break returns %s but body returns %s", node_repr(node->evaluates_to_type), node_repr(body_return_type));
                         }
                     }
-                    node->evaluates_to_type = body_return_type;
+                    pop_scope(&current_scope);
                 }
                 break;
             };
@@ -830,19 +905,24 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
                             report_error(foreach_else_body, "If you define an else in your foreach, then it should evaluate to something");
                             break;
                         }
-                        if (!body_return_type) {
-                            report_error(foreach_body, "If you define an else in your foreach, then your body should evaluate to something");
-                            break;
-                        }
-                        if (!types_are_equal(body_return_type, else_body_return_type)) {
+                        if (body_return_type && !types_are_equal(body_return_type, else_body_return_type)) {
                             report_error(
-                                node, "Your foreach has two branches (then, else) that evaluate to different types: '%s' and '%s'",
-                                node_repr(foreach_body->evaluates_to_type), node_repr(foreach_else_body->evaluates_to_type)
+                                node, "Your foreach branches evaluate to different types: body is %s, else is %s",
+                                node_repr(body_return_type), node_repr(else_body_return_type)
                             );
-                            break;
+                        }
+                        if (!node->evaluates_to_type) {
+                            node->evaluates_to_type = else_body_return_type;
+                        } else if (!types_are_equal(node->evaluates_to_type, else_body_return_type)) {
+                            report_error(node, "Foreach results are inconsistent: break returns %s but else returns %s", node_repr(node->evaluates_to_type), node_repr(else_body_return_type));
+                        }
+                    } else {
+                        if (!node->evaluates_to_type) {
+                            node->evaluates_to_type = body_return_type;
+                        } else if (body_return_type && !types_are_equal(node->evaluates_to_type, body_return_type)) {
+                            report_error(node, "Foreach results are inconsistent: break returns %s but body returns %s", node_repr(node->evaluates_to_type), node_repr(body_return_type));
                         }
                     }
-                    node->evaluates_to_type = body_return_type;
                     pop_scope(&current_scope);
                 }
                 break;
@@ -865,22 +945,27 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
                     if (loop_else_body) {
                         ASTNode* else_body_return_type = loop_else_body->evaluates_to_type;
                         if (!else_body_return_type) {
-                            report_error(loop_else_body, "If you define an else in your for loop, then it should evaluate to something");
+                            report_error(loop_else_body, "If you define an else in your loop, then it should evaluate to something");
                             break;
                         }
-                        if (!body_return_type) {
-                            report_error(loop_body, "If you define an else in your for loop, then your body should evaluate to something");
-                            break;
-                        }
-                        if (!types_are_equal(body_return_type, else_body_return_type)) {
+                        if (body_return_type && !types_are_equal(body_return_type, else_body_return_type)) {
                             report_error(
-                                node, "Your for loops have two branches (then, else) that evaluate to different types: '%s' and '%s'",
-                                node_repr(loop_body->evaluates_to_type), node_repr(loop_else_body->evaluates_to_type)
+                                node, "Your loop branches evaluate to different types: body is %s, else is %s",
+                                node_repr(body_return_type), node_repr(else_body_return_type)
                             );
-                            break;
+                        }
+                        if (!node->evaluates_to_type) {
+                            node->evaluates_to_type = else_body_return_type;
+                        } else if (!types_are_equal(node->evaluates_to_type, else_body_return_type)) {
+                            report_error(node, "Loop results are inconsistent: break returns %s but else returns %s", node_repr(node->evaluates_to_type), node_repr(else_body_return_type));
+                        }
+                    } else {
+                        if (!node->evaluates_to_type) {
+                            node->evaluates_to_type = body_return_type;
+                        } else if (body_return_type && !types_are_equal(node->evaluates_to_type, body_return_type)) {
+                            report_error(node, "Loop results are inconsistent: break returns %s but body returns %s", node_repr(node->evaluates_to_type), node_repr(body_return_type));
                         }
                     }
-                    node->evaluates_to_type = body_return_type;
                 }
                 break;
             };
@@ -984,6 +1069,7 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
                         if (!types_are_equal(break_arg_type, to_break_type)) {
                             report_error(node, "Trying to break with type %s, but block is of type %s", node_repr(break_arg_type), node_repr(to_break_type));
                         }
+                        node->evaluates_to_type = break_arg_type;
                     } else {
                         if (to_break_type) {
                             report_error(node, "Trying to break with no type, but type %s was expected for this block", node_repr(to_break_type));
@@ -1166,6 +1252,19 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
                     da_analyze_frames_append(&stack, (AnalyzeFrame){ node->as.type.generic_args, PHASE_ENTER });
                 }
                 UNAM_DEBUG_PLAIN("\n");
+                break;
+            };
+            case NODE_SIGNATURE_TYPE: {
+                if (phase == PHASE_ENTER) {
+                    node->evaluates_to_type = node;
+                    da_analyze_frames_append(&stack, (AnalyzeFrame){ node, PHASE_EXIT });
+                    if (node->as.signature.params) {
+                        da_analyze_frames_append(&stack, (AnalyzeFrame){ node->as.signature.params, PHASE_ENTER });
+                    }
+                    if (node->as.signature.return_type) {
+                        da_analyze_frames_append(&stack, (AnalyzeFrame){ node->as.signature.return_type, PHASE_ENTER });
+                    }
+                }
                 break;
             };
             case NODE_IDENTIFIER: {
