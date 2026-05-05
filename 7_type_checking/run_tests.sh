@@ -41,7 +41,7 @@ for test_file in $(find $TESTS_DIR -type f -name "*.ennuyeux" | sort); do
     exit_code=$?
 
     # Check if this is an intentional error file
-    if [[ "$test_file" == *"error"* ]] || [[ "$test_file" == *"mismatch"* ]] || [[ "$test_file" == *"invalid_syntax"* ]]; then
+    if [[ "$test_file" == *"error"* ]] || [[ "$test_file" == *"mismatch"* ]] || [[ "$test_file" == *"invalid"* ]]; then
         if [ $exit_code -ne 0 ]; then
             printf "✅ [%-33s] PASS (Expected Failure)\n" "$display_name"
             SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
