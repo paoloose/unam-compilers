@@ -1,5 +1,5 @@
 // Example: Functions with Early Return
-fn absolute(x: Int) {
+fn absolute(x: int) {
     if (x < 0) {
         return -x;
     };
@@ -10,11 +10,11 @@ fn twice<T>(x: Fn<T, T>) {
     x(x(x))
 }
 
-fn max(a: Int, b: Int) {
+fn max(a: int, b: int) {
     if (a > b) { a } else { b }
 }
 
-fn min(a: Int, b: Int) {
+fn min(a: int, b: int) {
     if (a < b) { a } else { b }
 }
 

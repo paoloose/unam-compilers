@@ -1,8 +1,8 @@
 // Example: Gleam-style Pipelines (|>)
-fn double(n: Int) { n * 2 }
-fn add(a: Int, b: Int) { a + b }
-fn square(n: Int) { n * n }
-fn to_string(n: Int) { "" + n }
+fn double(n: int) { n * 2 }
+fn add(a: int, b: int) { a + b }
+fn square(n: int) { n * n }
+fn to_string(n: int) { "" + n }
 
 fn main() {
     // Simple pipeline: value goes as first argument

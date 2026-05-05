@@ -1,5 +1,5 @@
 // Example: Recursive Fibonacci with Result
-fn fibonacci(n: Int) {
+fn fibonacci(n: int) {
     if (n < 0) {
         return Err("Negative number not allowed");
     };

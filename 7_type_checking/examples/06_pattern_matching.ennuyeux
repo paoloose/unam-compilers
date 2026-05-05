@@ -1,5 +1,5 @@
 // Example: Pattern Matching with Guards
-fn classify_value(x: Int) {
+fn classify_value(x: int) {
     match (x) {
         0 -> "Zero";
         1 -> "One";

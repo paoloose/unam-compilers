@@ -1,5 +1,5 @@
 // Example: Range Patterns in Match
-fn grade_letter(score: Int) {
+fn grade_letter(score: int) {
     match (score) {
         0..50 -> "F";
         51..70 -> "C";
