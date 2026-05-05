@@ -147,32 +147,122 @@
   - For each error the compiler reports, a global array of `DiagosticError`'s will be updated.
   - At the end of the program, all diagnostic errors will be reported to the user.
 
-
-
-
-
-#pagebreak()
-#pagebreak()
-#pagebreak()
-
 = Implementation
 
 == Symbols table
 
-== Scope análisis
+The symbol table is implemented using a linked list structure `SymbolTableEntry` that stores the symbol name and a reference to its AST type information via the `type_node` field. This allows the compiler to handle both variables and user-defined types (like structs) uniformly.
+
+```c
+typedef struct SymbolTableEntry {
+    char* name;
+    ASTNode* type_node; // type information
+    struct SymbolTableEntry* next;
+} SymbolTableEntry;
+```
+
+It supports lookup operations like `find_symbol`, which recursively traverses the scope chain, and `add_symbol_unshadowed`, which prevents duplicate declarations within the same scope.
+
+== Scope analysis
+
+Scopes are managed via a stack-like structure of `Scope` objects. The `push_scope` and `pop_scope` functions manipulate a pointer to the current active scope.
+
+```c
+typedef struct Scope {
+    SymbolTableEntry* symbols;
+    struct Scope* parent;
+} Scope;
+```
+
+When a function, block, or struct declaration is entered, `push_scope` is invoked, creating a new environment. When exiting, `pop_scope` correctly restores the parent scope. Variable lookups start from the innermost scope and traverse upward to the global scope, naturally supporting shadowing.
 
 == Type checking
 
+Type checking is performed by traversing the AST via the `analyze_node` function. As expressions are evaluated, their resulting types are assigned to the `evaluates_to_type` property of their AST nodes.
+
+For operations like function calls, the arguments passed are verified against the expected parameters defined in the symbol table using the `types_are_equal` helper:
+
+```c
+bool types_are_equal(ASTNode* type1, ASTNode* type2) {
+    if (!type1 && !type2) return true;
+    if (!type1 || !type2) return false;
+
+    // First check lexemes
+    if (type1->lexeme && type2->lexeme && strcmp(type1->lexeme, type2->lexeme) != 0) {
+        return false;
+    }
+
+    // Then recursively check generic args
+    // ...
+}
+```
+
+This logic accurately checks base types as well as structured/generic types.
+
 == Casting logic
+
+The current implementation of Ennuyeux prioritizes strict type safety, so implicit type promotion (such as casting `int` to `float` automatically) is not natively executed during AST evaluation. The compiler enforces exact type matches across assignments and operations.
+
+If casting logic were to be incorporated, it would be implemented via a type hierarchy evaluation during node analysis, injecting explicit cast operations into the AST when a safe promotion (e.g., `int` -> `float`) is detected, or throwing a semantic error otherwise.
 
 == Semantic validation
 
+The validation engine collects multiple errors without crashing immediately. This is achieved using a dynamic string array, `da_cstr semantic_errors`, to accumulate faults.
+
+Errors are reported via `report_semantic_error`, which formats the error message with precise line and column information from the AST:
+
+```c
+void report_semantic_error(ASTNode* node, const char* format, ...) {
+    // ... formatting logic ...
+    char* final_message;
+    if (node) {
+        int len = snprintf(NULL, 0, "[%d:%d] %s", node->line, node->col, message);
+        final_message = malloc(len + 1);
+        snprintf(final_message, len + 1, "[%d:%d] %s", node->line, node->col, message);
+    }
+    da_cstr_append(&semantic_errors, final_message);
+}
+```
+
+At the end of the analysis, `analyze_semantics` determines if the validation was successful by checking the length of the error array, and prints all gathered errors neatly for the developer.
+
 = Results
+
+The semantic analyzer successfully traverses the AST and correctly enforces scoping and typing rules across several Ennuyeux language constructs. The analyzer correctly reports scoping issues (like redeclarations and undefined symbols) and identifies type mismatches in function calls, return statements, and struct field definitions.
+
+Valid programs complete the semantic pass returning a populated and checked AST, whereas invalid programs correctly accumulate precise error messages pointing directly to the faulty lines and columns.
 
 = Extras
 
 == Dockerfile (+1)
 
+A Dockerfile is provided in the repository root to containerize the compiler environment and quickly build and test the parser and semantic validation engine. The Dockerfile leverages a minimal environment with GCC, Flex, and Bison to execute the project independently of local setups.
+
+```sh
+docker build -t ennuyeux-tests .
+docker run --rm ennuyeux-tests
+```
+
 == Type inference (+1.5)
 
+Type inference is partially supported during variable declarations (`let`). If a variable is declared without an explicit type, the compiler attempts to infer the type from the right-hand side expression that is being assigned.
+
+```c
+        case NODE_LET: {
+            // First we evaluate what we got at the right side
+            analyze_node(current_scope, node->right);
+
+            if (node->left) {
+                // Explicitly typed
+                add_symbol_unshadowed(current_scope, node->lexeme, node->left);
+            } else {
+                // Inferred from right side
+                add_symbol_unshadowed(current_scope, node->lexeme, node->right->evaluates_to_type);
+            }
+            break;
+        }
+```
+
 == Warnings (+1)
+
+Detection for unused variables is currently not implemented in the final version of the code, but the architecture allows for it cleanly. It would merely require adding an `is_used` boolean flag to the `SymbolTableEntry` struct, setting it to `true` on lookup, and emitting a diagnostic warning for any symbol with `is_used == false` right before a scope is popped and destroyed.
