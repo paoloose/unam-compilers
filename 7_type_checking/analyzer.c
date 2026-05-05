@@ -60,59 +60,66 @@ static void pop_scope(Scope** current_scope) {
     *current_scope = parent;
 }
 
-bool types_are_equal(ASTNode* type1, ASTNode* type2) {
-    if (!type1 && !type2) return true;
-    if (!type1 || !type2) return false;
+bool types_match(ASTNode* expected, ASTNode* actual, ASTNode* decl_gen, ASTNode* lit_gen) {
+    if (!expected && !actual) return true;
+    if (!expected || !actual) return false;
 
-    const char* type1_name = NULL;
-    ASTNode* g1 = NULL;
-    if (type1->type == NODE_CONCRETE_TYPE || type1->type == NODE_GENERIC_TYPE) {
-        type1_name = type1->as.type.name;
-        g1 = type1->as.type.generic_args;
-    } else if (type1->type == NODE_ENUM_DECL) {
-        type1_name = type1->as.enum_decl.name;
-        g1 = type1->as.enum_decl.generic_args;
-    } else if (type1->type == NODE_STRUCT_DECL) {
-        type1_name = type1->as.struct_decl.name;
-        g1 = type1->as.struct_decl.generic_args;
-    }
-
-    const char* type2_name = NULL;
-    ASTNode* g2 = NULL;
-    if (type2->type == NODE_CONCRETE_TYPE || type2->type == NODE_GENERIC_TYPE) {
-        type2_name = type2->as.type.name;
-        g2 = type2->as.type.generic_args;
-    } else if (type2->type == NODE_ENUM_DECL) {
-        type2_name = type2->as.enum_decl.name;
-        g2 = type2->as.enum_decl.generic_args;
-    } else if (type2->type == NODE_STRUCT_DECL) {
-        type2_name = type2->as.struct_decl.name;
-        g2 = type2->as.struct_decl.generic_args;
-    }
-
-    // First check lexemes
-    if (type1_name == NULL && type2_name != NULL) {
-        return false;
-    }
-    if (type1_name != NULL && type2_name == NULL) {
-        return false;
-    }
-    if (type1_name && type2_name && strcmp(type1_name, type2_name) != 0) {
-        return false;
-    }
-
-    // Then check generic args
-    while (g1 && g2) {
-        if (!types_are_equal(g1, g2)) {
-            return false;
+    // Handle generic specialization for the expected type
+    // If it's a plain type, it might be a generic parameter name
+    if (expected->type == NODE_PLAIN_TYPE) {
+        ASTNode* dg = decl_gen;
+        ASTNode* lg = lit_gen;
+        while (dg && lg) {
+            if (dg->type == NODE_PLAIN_TYPE && strcmp(dg->as.type.name, expected->as.type.name) == 0) {
+                expected = lg;
+                break;
+            }
+            dg = dg->next;
+            lg = lg->next;
         }
-        g1 = g1->next;
-        g2 = g2->next;
     }
 
-    // If one has more generic args than the other
-    if (g1 || g2) return false;
-    return true;
+    const char* expected_name = NULL;
+    ASTNode* expected_args = NULL;
+    if (expected->type == NODE_PLAIN_TYPE) {
+        expected_name = expected->as.type.name;
+        expected_args = expected->as.type.generic_args;
+    } else if (expected->type == NODE_ENUM_DECL) {
+        expected_name = expected->as.enum_decl.name;
+        expected_args = expected->as.enum_decl.generic_args;
+    } else if (expected->type == NODE_STRUCT_DECL) {
+        expected_name = expected->as.struct_decl.name;
+        expected_args = expected->as.struct_decl.generic_args;
+    }
+
+    const char* actual_name = NULL;
+    ASTNode* actual_args = NULL;
+    if (actual->type == NODE_PLAIN_TYPE) {
+        actual_name = actual->as.type.name;
+        actual_args = actual->as.type.generic_args;
+    } else if (actual->type == NODE_ENUM_DECL) {
+        actual_name = actual->as.enum_decl.name;
+        actual_args = actual->as.enum_decl.generic_args;
+    } else if (actual->type == NODE_STRUCT_DECL) {
+        actual_name = actual->as.struct_decl.name;
+        actual_args = actual->as.struct_decl.generic_args;
+    }
+
+    if (!expected_name || !actual_name || strcmp(expected_name, actual_name) != 0) return false;
+
+    // Deep compare generic args
+    ASTNode* eg = expected_args;
+    ASTNode* ag = actual_args;
+    while (eg && ag) {
+        if (!types_match(eg, ag, decl_gen, lit_gen)) return false;
+        eg = eg->next;
+        ag = ag->next;
+    }
+    return eg == NULL && ag == NULL;
+}
+
+bool types_are_equal(ASTNode* type1, ASTNode* type2) {
+    return types_match(type1, type2, NULL, NULL);
 }
 
 bool is_builting_literal(const char* lexeme) {
@@ -250,8 +257,7 @@ void add_symbol_unchecked(Scope* current_scope, const char* name, ASTNode* type_
         case NODE_LET: {
             break;
         };
-        case NODE_CONCRETE_TYPE:
-        case NODE_GENERIC_TYPE: {
+        case NODE_PLAIN_TYPE: {
             break;
         }
         default: {
@@ -367,10 +373,6 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
                     if (!parameter_type || !parameter_type->node) {
                         report_error(node, "Function parameter '%s' is using a type '%s' that doesn't exist", parameter_name, parameter_type_name);
                     } else {
-                        // This overrides the concrete type with a generic type, as this param is referecing a generic types in the symbol table
-                        if (parameter_type->node->type == NODE_GENERIC_TYPE) {
-                            param_type->type = NODE_GENERIC_TYPE;
-                        }
                         node->evaluates_to_type = param_type;
                     }
                 }
@@ -407,17 +409,14 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
                     while (param) {
                         ASTNode* param_type = param->as.func_param.type_expr;
                         UNAM_ASSERT(param->type == NODE_FUNC_PARAMETER, "function parameter must have NODE_FUNC_PARAMETER type");
-                        UNAM_ASSERT(param_type != NULL && (param_type->type == NODE_CONCRETE_TYPE || param_type->type == NODE_GENERIC_TYPE), "invalid func_param type");
+                        UNAM_ASSERT(param_type != NULL && (param_type->type == NODE_PLAIN_TYPE), "invalid func_param type");
                         param = param->next;
                     }
 
                     // For each generic type param
                     ASTNode* generic_arg = node->as.function.generic_args;
                     while (generic_arg) {
-                        // We add the generic type as symbol, and then analyze the node
-                        UNAM_ASSERT(generic_arg->type == NODE_CONCRETE_TYPE, "generic type params must initially be concrete types");
-                        // And we promote them to generic types, as they appear in the generic type parameters list
-                        generic_arg->type = NODE_GENERIC_TYPE;
+                        generic_arg->type = NODE_PLAIN_TYPE;
                         if (!add_symbol_unshadowed(current_scope, generic_arg->as.type.name, generic_arg)) {
                             report_error(generic_arg, "Trying to name a generic type '%s', but it's already defined", generic_arg->as.type.name);
                             break;
@@ -493,15 +492,10 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
                     // We are free of basic errors!
                     da_analyze_frames_append(&stack, (AnalyzeFrame){ node, PHASE_EXIT });
 
-                    ASTNode* passed_arg = node->as.call.args;
-
-                    // We add our arguments so we evaluate them before ocoming back to this node
-                    da_analyze_frames_reverse_mode_start(&stack);
-                    while (passed_arg) {
-                        da_analyze_frames_append(&stack, (AnalyzeFrame){ passed_arg, PHASE_ENTER });
-                        passed_arg = passed_arg->next;
+                    // We add our arguments so we evaluate them before coming back to this node
+                    if (node->as.call.args) {
+                        da_analyze_frames_append(&stack, (AnalyzeFrame){ node->as.call.args, PHASE_ENTER });
                     }
-                    da_analyze_frames_reverse_mode_end(&stack);
 
                     // This means that the calling function is dynamic, so our priority is to evaluate it first!
                     if (func->type != NODE_IDENTIFIER) {
@@ -548,7 +542,7 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
 
                     ASTNode* passed_arg = node->as.call.args;
 
-                    da_astnodes specialized_params_types;  // generic types that are now specialized (NODE_GENERIC_TYPE)
+                    da_astnodes specialized_params_types;  // generic types that are now specialized (NODE_PLAIN_TYPE)
                     da_astnodes_init(&specialized_params_types, 4);
                     da_astnodes specialized_params_values; // the actual types they have been specialized too (ANY)
                     da_astnodes_init(&specialized_params_values, 4);
@@ -570,20 +564,22 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
 
                         passed_args_len++;
                         int param_node_type = param_type->type;
-                        UNAM_ASSERT(param_node_type == NODE_CONCRETE_TYPE || param_node_type == NODE_GENERIC_TYPE, "function argument must be of correct type");
+                        UNAM_ASSERT(param_node_type == NODE_PLAIN_TYPE || param_node_type == NODE_STRUCT_DECL || param_node_type == NODE_ENUM_DECL, "function argument must be of correct type");
 
                         if (passed_arg->evaluates_to_type == NULL) {
                             report_error(passed_arg, "Passed argument #%d to function '%s' evalutes to void", passed_args_len, node_repr(node));
                             goto outer_loop;
                         }
 
-                        if (passed_arg->evaluates_to_type->type != NODE_CONCRETE_TYPE && passed_arg->evaluates_to_type->type != NODE_GENERIC_TYPE) {
+                        if (passed_arg->evaluates_to_type->type != NODE_PLAIN_TYPE &&
+                            passed_arg->evaluates_to_type->type != NODE_STRUCT_DECL &&
+                            passed_arg->evaluates_to_type->type != NODE_ENUM_DECL) {
                             report_error(passed_arg, "Passed argument #%d to function '%s' evaluates to %s, which is not a type", passed_args_len, node_repr(node), node_repr(passed_arg->evaluates_to_type));
                             goto outer_loop;
                         }
 
                         UNAM_ASSERT(find_symbol(current_scope, passed_arg->evaluates_to_type->as.type.name) != NULL, "function must return a type at this point");
-                        if (param_type->type == NODE_GENERIC_TYPE) {
+                        if (param_type->type == NODE_PLAIN_TYPE) {
                             bool already_specialized = false;
                             size_t i = 0;
                             for (; i < specialized_params_types.length; i++) {
@@ -604,7 +600,7 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
                             } else {
                                 // register the specialization
                                 da_astnodes_append(&specialized_params_types, param_type);
-                                UNAM_ASSERT(passed_arg->evaluates_to_type->type == NODE_CONCRETE_TYPE, "specialization of type arguments must be done to a CONCRETE_TYPE");
+                                UNAM_ASSERT(passed_arg->evaluates_to_type->type == NODE_PLAIN_TYPE || passed_arg->evaluates_to_type->type == NODE_STRUCT_DECL || passed_arg->evaluates_to_type->type == NODE_ENUM_DECL, "specialization of type arguments must be done to a valid type");
                                 da_astnodes_append(&specialized_params_values, passed_arg->evaluates_to_type);
                             }
                         } else if (!types_are_equal(passed_arg->evaluates_to_type, param_type)) {
@@ -740,6 +736,7 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
                             }
                         } else {
                             // TODO: warning, your condition doesn't evaluate to anything
+                            report_warning(for_cond, "The condition of this for loop evaluates to void");
                         }
                     }
                     UNAM_ASSERT(for_body, "for_body must be defined");
@@ -1119,7 +1116,6 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
                         report_error(operand, "Trying to apply unary operator '%s' to void type", op);
                         break;
                     }
-
                     const char* operand_type_name = operand_type->as.type.name;
 
                     bool operand_is_int = strcmp(operand_type_name, "int") == 0;
@@ -1154,23 +1150,17 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
                 }
                 break;
             };
-            case NODE_CONCRETE_TYPE:
-            case NODE_GENERIC_TYPE: {
+            case NODE_PLAIN_TYPE: {
                 UNAM_DEBUG("  type name=%s", node_repr(node));
-                if (!find_symbol(current_scope, node->as.type.name)) {
-                    report_error(node, "Referenced type '%s' is not defined", node_repr(node));
-                }
+                 SymbolTableEntry* sym = find_symbol(current_scope, node->as.type.name);
+                 if (!sym) {
+                     report_error(node, "Referenced type '%s' is not defined", node_repr(node));
+                 }
 
-                // No need to check anything
-                ASTNode* generic_arg = node->as.type.generic_args;
-                if (generic_arg) UNAM_DEBUG_PLAIN(", with args:");
-
-                da_analyze_frames_reverse_mode_start(&stack);
-                while (generic_arg) {
-                    da_analyze_frames_append(&stack, (AnalyzeFrame){ generic_arg, PHASE_ENTER });
-                    generic_arg = generic_arg->next;
+                // Analyze generic arguments if provided
+                if (node->as.type.generic_args) {
+                    da_analyze_frames_append(&stack, (AnalyzeFrame){ node->as.type.generic_args, PHASE_ENTER });
                 }
-                da_analyze_frames_reverse_mode_end(&stack);
                 UNAM_DEBUG_PLAIN("\n");
                 break;
             };
@@ -1226,12 +1216,11 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
                     }
 
                     push_scope(&current_scope);
-                    node->scope = current_scope;
 
                     // Register generic type parameters in the new scope
                     ASTNode* enum_generic_arg = node->as.enum_decl.generic_args;
                     while (enum_generic_arg) {
-                        enum_generic_arg->type = NODE_GENERIC_TYPE;
+                        enum_generic_arg->type = NODE_PLAIN_TYPE;
                         add_symbol_unshadowed(current_scope, enum_generic_arg->as.type.name, enum_generic_arg);
                         enum_generic_arg = enum_generic_arg->next;
                     }
@@ -1281,6 +1270,7 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
                 const char* struct_name = node->as.struct_decl.name;
 
                 if (phase == PHASE_ENTER) {
+                    node->evaluates_to_type = node;
                     UNAM_DEBUG("struct name=%s\n", struct_name);
                     da_astnodes_append(&contexts_stack, node);
 
@@ -1293,28 +1283,24 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
                     // Register generic type parameters in the new scope
                     ASTNode* generic_arg = node->as.struct_decl.generic_args;
                     while (generic_arg) {
-                        generic_arg->type = NODE_GENERIC_TYPE;
+                        generic_arg->type = NODE_PLAIN_TYPE;
                         add_symbol_unshadowed(current_scope, generic_arg->as.type.name, generic_arg);
-                        da_analyze_frames_append(&stack, (AnalyzeFrame){ generic_arg, PHASE_ENTER });
                         generic_arg = generic_arg->next;
+                    }
+                    if (node->as.struct_decl.generic_args) {
+                        // Mark them as evaluated to themselves
+                        ASTNode* g = node->as.struct_decl.generic_args;
+                        while (g) {
+                            g->evaluates_to_type = g;
+                            g = g->next;
+                        }
                     }
 
                     da_analyze_frames_append(&stack, (AnalyzeFrame){ node, PHASE_EXIT });
 
-                    // Schedule fields for analysis after sealing the type in PHASE_MID
-                    ASTNode* struct_field = node->as.struct_decl.fields;
-                    da_analyze_frames_reverse_mode_start(&stack);
-                    while (struct_field) {
-                        da_analyze_frames_append(&stack, (AnalyzeFrame){ struct_field->as.struct_field.value, PHASE_ENTER });
-                        struct_field = struct_field->next;
+                    if (node->as.struct_decl.fields) {
+                        da_analyze_frames_append(&stack, (AnalyzeFrame){ node->as.struct_decl.fields, PHASE_ENTER });
                     }
-                    da_analyze_frames_reverse_mode_end(&stack);
-
-                    // PHASE_MID will seal the type so fields can reference it
-                    da_analyze_frames_append(&stack, (AnalyzeFrame){ node, PHASE_MID });
-                } else if (phase == PHASE_MID) {
-                    // NOTE: is this needed?
-                    node->evaluates_to_type = node;
                 } else if (phase == PHASE_EXIT) {
                     da_astnodes_pop(&contexts_stack, NULL);
                     // Validate: no duplicate field names
@@ -1350,9 +1336,84 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
                 }
                 break;
             };
+            case NODE_STRUCT_LITERAL: {
+                const char* struct_name = node->as.struct_lit.name;
+                SymbolTableEntry* struct_sym = find_symbol(current_scope, struct_name);
+
+                if (!struct_sym || struct_sym->node->type != NODE_STRUCT_DECL) {
+                    report_error(node, "Type '%s' is not a struct to instantiate", struct_name);
+                    break;
+                }
+
+                if (phase == PHASE_ENTER) {
+                    da_analyze_frames_append(&stack, (AnalyzeFrame){ node, PHASE_EXIT });
+
+                    // Analyze generic arguments if provided
+                    if (node->as.struct_lit.generic_args) {
+                        da_analyze_frames_append(&stack, (AnalyzeFrame){ node->as.struct_lit.generic_args, PHASE_ENTER });
+                    }
+
+                    // Analyze provided fields
+                    if (node->as.struct_lit.fields) {
+                        da_analyze_frames_append(&stack, (AnalyzeFrame){ node->as.struct_lit.fields, PHASE_ENTER });
+                    }
+                } else if (phase == PHASE_EXIT) {
+                    ASTNode* struct_decl = struct_sym->node;
+                    node->evaluates_to_type = struct_decl;
+
+                    // 1. Validate that all required fields from the declaration are present
+                    ASTNode* struct_field = struct_decl->as.struct_decl.fields;
+                    while (struct_field) {
+                        const char* field_name = struct_field->as.struct_field.name;
+                        ASTNode* lit_field = node->as.struct_lit.fields;
+                        bool found = false;
+                        while (lit_field) {
+                            if (strcmp(lit_field->as.struct_field.name, field_name) == 0) {
+                                found = true;
+                                break;
+                            }
+                            lit_field = lit_field->next;
+                        }
+
+                        if (!found) {
+                            report_error(node, "Missing required field '%s' for struct '%s'", field_name, struct_name);
+                        }
+                        struct_field = struct_field->next;
+                    }
+
+                    // 2. Validate that each provided field matches the declaration's type
+                    ASTNode* lit_field = node->as.struct_lit.fields;
+                    while (lit_field) {
+                        const char* field_name = lit_field->as.struct_field.name;
+                        ASTNode* struct_field = struct_decl->as.struct_decl.fields;
+                        ASTNode* target_struct_field = NULL;
+
+                        while (struct_field) {
+                            if (strcmp(struct_field->as.struct_field.name, field_name) == 0) {
+                                target_struct_field = struct_field;
+                                break;
+                            }
+                            struct_field = struct_field->next;
+                        }
+
+                        if (target_struct_field) {
+                            ASTNode* expected_type = target_struct_field->as.struct_field.value;
+                            ASTNode* actual_type = lit_field->as.struct_field.value->evaluates_to_type;
+
+                            if (!types_match(expected_type, actual_type, struct_decl->as.struct_decl.generic_args, node->as.struct_lit.generic_args)) {
+                                report_error(lit_field, "Type mismatch for field '%s'. Expected '%s', but found '%s'",
+                                    field_name, node_repr(expected_type), node_repr(actual_type));
+                            }
+                        } else {
+                            report_error(lit_field, "Field '%s' does not exist in struct '%s'", field_name, struct_name);
+                        }
+                        lit_field = lit_field->next;
+                    }
+                }
+                break;
+            };
             case NODE_STRUCT_FIELD: {
-                UNAM_DEBUG("NODE_STRUCT_FIELD not implemented");
-                exit(69);
+                da_analyze_frames_append(&stack, (AnalyzeFrame){ node->as.struct_field.value, PHASE_ENTER });
                 break;
             };
             case NODE_LIST_LITERAL: {
@@ -1362,12 +1423,10 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
                     UNAM_DEBUG("  list: \n");
                     da_analyze_frames_append(&stack, (AnalyzeFrame){ node, PHASE_EXIT });
 
-                    da_analyze_frames_reverse_mode_start(&stack);
-                    while (element) {
-                        da_analyze_frames_append(&stack, (AnalyzeFrame){ element, PHASE_ENTER });
-                        element = element->next;
+                    // Schedule items for analysis
+                    if (node->as.list_lit.items) {
+                        da_analyze_frames_append(&stack, (AnalyzeFrame){ node->as.list_lit.items, PHASE_ENTER });
                     }
-                    da_analyze_frames_reverse_mode_end(&stack);
                 } else if (phase == PHASE_EXIT) {
                     // We iter over the evaluated types of each of its items to make sure they are the same
                     ASTNode* last_element_type = NULL;
@@ -1388,10 +1447,14 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
                         element = element->next;
                     }
 
-                    SymbolTableEntry* list_type = find_symbol(current_scope, "List");
-                    UNAM_ASSERT(list_type != NULL, "List type is not defined");
-                    node->evaluates_to_type = list_type->node;
-                    node->evaluates_to_type->as.type.generic_args = last_element_type;
+                    SymbolTableEntry* list_symbol = find_symbol(current_scope, "List");
+                    UNAM_ASSERT(list_symbol != NULL, "List type is not defined");
+
+                    // Create a NEW type node to avoid mutating the shared builtin
+                    ASTNode* list_type = create_node(NODE_PLAIN_TYPE);
+                    list_type->as.type.name = ast_strdup("List");
+                    list_type->as.type.generic_args = last_element_type;
+                    node->evaluates_to_type = list_type;
                 }
                 break;
             };
@@ -1419,53 +1482,74 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
                     da_analyze_frames_append(&stack, (AnalyzeFrame){ node, PHASE_EXIT });
                     da_analyze_frames_append(&stack, (AnalyzeFrame){ object, PHASE_ENTER });
                 } else if (phase == PHASE_EXIT) {
-                    if (strcmp(op, "::") == 0) {
-                        // For enum::variant
-                        ASTNode* object_type = object->evaluates_to_type;
-                        if (!object_type) {
-                            report_error(object, "Cannot access member of void type");
-                            break;
-                        }
+                    SymbolTableEntry* found_type_symbol = find_symbol(current_scope, object->evaluates_to_type->as.type.name);
+                    UNAM_ASSERT(found_type_symbol, "The object type should exist in the symbols table");
+                    ASTNode* object_type = found_type_symbol->node;
 
+                    if (!object_type) {
+                        report_error(object, "Cannot access member of void type");
+                        break;
+                    }
+
+                    const char* member_name = member->as.ident.name;
+
+                    if (strcmp(op, "::") == 0) {
+                        // Scoped access (::) is only for Enums
                         if (object_type->type != NODE_ENUM_DECL) {
                             report_error(object, "Operator :: can only be used with Enums, but got %s", node_repr(object_type));
                             break;
                         }
 
-                        Scope* object_scope = (Scope*)object_type->scope;
-                        if (!object_scope) {
-                            report_error(object, "Type %s has no scope", node_repr(object_type));
-                            break;
-                        }
-
-                        const char* member_name = member->as.ident.name;
-                        SymbolTableEntry* sym = object_scope->symbols;
-                        SymbolTableEntry* found = NULL;
-                        while (sym) {
-                            if (strcmp(sym->name, member_name) == 0) {
-                                found = sym;
+                        // Search in variants
+                        ASTNode* variant = object_type->as.enum_decl.variants;
+                        ASTNode* found = NULL;
+                        while (variant) {
+                            if (strcmp(variant->as.enum_variant.name, member_name) == 0) {
+                                found = variant;
                                 break;
                             }
-                            sym = sym->next;
+                            variant = variant->next;
                         }
 
                         if (!found) {
-                            report_error(member, "Member '%s' not found in %s", member_name, node_repr(object_type));
+                            report_error(member, "Variant '%s' not found in enum %s", member_name, object_type->as.enum_decl.name);
                             break;
                         }
 
-                        // We evaluate to the node itself if it's a "callable" thing (variant with payloads)
-                        // otherwise we evaluate to its type (the Enum)
-                        if (found->node->type == NODE_ENUM_VARIANT && found->node->as.enum_variant.payload_types) {
-                            node->evaluates_to_type = found->node;
-                        } else if (found->node->evaluates_to_type) {
-                            node->evaluates_to_type = found->node->evaluates_to_type;
+                        // We evaluate to the variant node itself if it's "callable" (has payloads)
+                        // otherwise we evaluate to the enum type (object_type)
+                        if (found->as.enum_variant.payload_types) {
+                            node->evaluates_to_type = found;
                         } else {
-                            node->evaluates_to_type = found->node;
+                            node->evaluates_to_type = object_type;
                         }
+                    } else if (strcmp(op, ".") == 0) {
+                        // Instance access (.) is only for Struct instances
+                        if (object_type->type != NODE_STRUCT_DECL) {
+                            report_error(object, "Operator . can only be used with Struct instances, but got %s", node_repr(object_type));
+                            break;
+                        }
+
+                        // Search in fields
+                        ASTNode* field = object_type->as.struct_decl.fields;
+                        ASTNode* found = NULL;
+                        while (field) {
+                            if (strcmp(field->as.struct_field.name, member_name) == 0) {
+                                found = field;
+                                break;
+                            }
+                            field = field->next;
+                        }
+
+                        if (!found) {
+                            report_error(member, "Field '%s' not found in struct %s", member_name, object_type->as.struct_decl.name);
+                            break;
+                        }
+                        // The access evaluates to the field's type
+                        UNAM_ASSERT(found->type == NODE_STRUCT_FIELD, "matched field should be an struct field");
+                        node->evaluates_to_type = found->as.struct_field.value;
                     } else {
-                        UNAM_DEBUG("Member access operator %s not implemented", op);
-                        exit(69);
+                        UNAM_ASSERT(false, "unreachable");
                     }
                 }
                 break;

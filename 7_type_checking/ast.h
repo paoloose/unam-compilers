@@ -31,8 +31,7 @@ typedef enum {
     /*13*/ NODE_BINARY_OP,
     /*14*/ NODE_UNARY_OP,
     /*15*/ NODE_IDENTIFIER,
-    /*16*/ NODE_CONCRETE_TYPE,
-    /*17*/ NODE_GENERIC_TYPE, // generic types are determined in semantic analysis phase
+    /*16*/ NODE_PLAIN_TYPE,
     /*18*/ NODE_INT_LITERAL,
     /*19*/ NODE_FLOAT_LITERAL,
     /*20*/ NODE_BOOL_LITERAL,
@@ -206,8 +205,7 @@ struct ASTNode {
             char* name;
         } ident;
 
-        /* NODE_CONCRETE_TYPE */
-        /* NODE_GENERIC_TYPE */
+        /* NODE_PLAIN_TYPE */
         struct {
             const char* name;
             ASTNode* generic_args;
