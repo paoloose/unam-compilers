@@ -495,6 +495,11 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
                             goto outer_loop;
                         }
 
+                        if (passed_arg->evaluates_to_type->type != NODE_CONCRETE_TYPE && passed_arg->evaluates_to_type->type != NODE_GENERIC_TYPE) {
+                            report_error(passed_arg, "Passed argument #%d to function '%s' evaluates to %s, which is not a type", passed_args_len, node_repr(node), node_repr(passed_arg->evaluates_to_type));
+                            goto outer_loop;
+                        }
+
                         UNAM_ASSERT(find_symbol(current_scope, passed_arg->evaluates_to_type->as.type.name) != NULL, "function must return a type at this point");
                         if (param_type->type == NODE_GENERIC_TYPE) {
                             bool already_specialized = false;
