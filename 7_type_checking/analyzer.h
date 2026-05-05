@@ -86,3 +86,10 @@ typedef struct Scope {
 bool analyze_semantics(ASTNode* root);
 void report_error(ASTNode* node, const char* format, ...);
 void report_warning(ASTNode* node, const char* format, ...);
+
+SymbolTableEntry* get_int_symbol();
+SymbolTableEntry* get_float_symbol();
+SymbolTableEntry* get_bool_symbol();
+SymbolTableEntry* get_string_symbol();
+SymbolTableEntry* get_list_symbol();
+SymbolTableEntry* get_print_symbol();

@@ -70,24 +70,43 @@ static ASTNode* get_function_signature(ASTNode* func) {
 void infer_specializations(ASTNode* expected, ASTNode* actual, da_astnodes* types, da_astnodes* values) {
     if (!expected || !actual) return;
     if (expected->type == NODE_PLAIN_TYPE) {
-        for (size_t i = 0; i < types->length; i++) {
-            if (strcmp(types->data[i]->as.type.name, expected->as.type.name) == 0) return;
-        }
-        // We create a temporary node for the mapping to avoid mutating the original declaration
-        ASTNode* type_mapping = create_node(NODE_PLAIN_TYPE);
-        type_mapping->as.type.name = ast_strdup(expected->as.type.name);
+        // If it's a generic parameter name
+        if (expected->as.type.is_generic) {
+            for (size_t i = 0; i < types->length; i++) {
+                if (strcmp(types->data[i]->as.type.name, expected->as.type.name) == 0) return;
+            }
+            // We create a temporary node for the mapping to avoid mutating the original declaration
+            ASTNode* type_mapping = create_node(NODE_PLAIN_TYPE);
+            type_mapping->as.type.name = ast_strdup(expected->as.type.name);
+            type_mapping->as.type.is_generic = true;
 
-        da_astnodes_append(types, type_mapping);
-        da_astnodes_append(values, actual);
-        // Link them for types_match (which expects a linked list)
-        if (values->length > 1) {
-            values->data[values->length - 2]->next = actual;
+            da_astnodes_append(types, type_mapping);
+
+            // Clone actual to avoid side effects when linking
+            ASTNode* actual_cloned = create_node(actual->type);
+            actual_cloned->as = actual->as;
+            actual_cloned->next = NULL;
+            da_astnodes_append(values, actual_cloned);
+
+            // Link them for types_match/specialize_type (which currently expect a linked list)
+            if (values->length > 1) {
+                values->data[values->length - 2]->next = values->data[values->length - 1];
+            }
+            if (types->length > 1) {
+                types->data[types->length - 2]->next = types->data[types->length - 1];
+            }
         }
-        if (types->length > 1) {
-            types->data[types->length - 2]->next = type_mapping;
+        // If it's a plain type with generic args, recurse on them
+        else if (actual->type == NODE_PLAIN_TYPE &&
+                 strcmp(expected->as.type.name, actual->as.type.name) == 0) {
+            ASTNode* eg = expected->as.type.generic_args;
+            ASTNode* ag = actual->as.type.generic_args;
+            while (eg && ag) {
+                infer_specializations(eg, ag, types, values);
+                eg = eg->next;
+                ag = ag->next;
+            }
         }
-        actual->next = NULL;
-        type_mapping->next = NULL;
     } else if (expected->type == NODE_SIGNATURE_TYPE && actual->type == NODE_SIGNATURE_TYPE) {
         ASTNode* ep = expected->as.signature.params;
         ASTNode* ap = actual->as.signature.params;
@@ -109,7 +128,10 @@ ASTNode* specialize_type(ASTNode* type, ASTNode* decl_gen, ASTNode* lit_gen) {
         ASTNode* lg = lit_gen;
         while (dg && lg) {
             if (strcmp(dg->as.type.name, type->as.type.name) == 0) {
-                return lg;
+                ASTNode* cloned = create_node(lg->type);
+                cloned->as = lg->as;
+                cloned->next = NULL;
+                return cloned;
             }
             dg = dg->next;
             lg = lg->next;
@@ -309,6 +331,17 @@ ASTNode* find_nearest_breakable_context(const da_astnodes* contexts_stack) {
     }
 
     return breakable_stmt;
+}
+
+ASTNode* find_nearest_pipeline(const da_astnodes* contexts_stack) {
+    size_t i = contexts_stack->length;
+    while (i-->0) {
+        ASTNode* entry = contexts_stack->data[i];
+        if (entry->type == NODE_PIPELINE) {
+            return entry;
+        }
+    }
+    return NULL;
 }
 
 ASTNode* find_nearest_scope(const da_astnodes* contexts_stack) {
@@ -540,6 +573,10 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
             da_analyze_frames_append(&stack, (AnalyzeFrame){ node->next, PHASE_ENTER });
         }
 
+        if (node->evaluates_to_type && phase == PHASE_ENTER) {
+            continue;
+        }
+
         switch (node->type) {
             case NODE_PROGRAM: {
                 if (phase == PHASE_ENTER) {
@@ -652,8 +689,12 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
                         generic_arg = generic_arg->next;
                     }
 
-                    da_analyze_frames_append(&stack, (AnalyzeFrame){ node->as.function.params, PHASE_ENTER });
-                    da_analyze_frames_append(&stack, (AnalyzeFrame){ node->as.function.generic_args, PHASE_ENTER });
+                    if (node->as.function.params) {
+                        da_analyze_frames_append(&stack, (AnalyzeFrame){ node->as.function.params, PHASE_ENTER });
+                    }
+                    if (node->as.function.generic_args) {
+                        da_analyze_frames_append(&stack, (AnalyzeFrame){ node->as.function.generic_args, PHASE_ENTER });
+                    }
 
                 } else if (phase == PHASE_EXIT) {
                     da_astnodes_pop(&contexts_stack, NULL);
@@ -722,6 +763,7 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
                     }
 
                     // We are free of basic errors!
+                    da_astnodes_append(&contexts_stack, node);
                     da_analyze_frames_append(&stack, (AnalyzeFrame){ node, PHASE_EXIT });
 
                     // We add our arguments so we evaluate them before coming back to this node
@@ -770,6 +812,8 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
                     }
 
                     // specialization darrays moved inside argument loop and return type specialization
+                    da_astnodes placeholder_types;
+                    da_astnodes_init(&placeholder_types, 4);
 
                     // And now that we now a function is being called, we validate its arguments!
                     ASTNode* expected_param = NULL;
@@ -797,8 +841,14 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
                         }
 
                         passed_args_len++;
-                        int param_node_type = param_type->type;
-                        UNAM_ASSERT(param_node_type == NODE_PLAIN_TYPE || param_node_type == NODE_SIGNATURE_TYPE || param_node_type == NODE_STRUCT_DECL || param_node_type == NODE_ENUM_DECL, "function argument must be of correct type");
+
+                        if (passed_arg->type == NODE_PLACEHOLDER) {
+                            // Collect the expected type for this placeholder
+                            da_astnodes_append(&placeholder_types, param_type);
+                            passed_arg = passed_arg->next;
+                            expected_param = expected_param->next;
+                            continue;
+                        }
 
                         if (passed_arg->evaluates_to_type == NULL) {
                             report_error(passed_arg, "Passed argument #%d to function '%s' evalutes to void", passed_args_len, node_repr(node));
@@ -818,7 +868,7 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
                         ASTNode* dg = specialized_params_types.length > 0 ? specialized_params_types.data[0] : NULL;
                         ASTNode* lg = specialized_params_values.length > 0 ? specialized_params_values.data[0] : NULL;
                         if (!types_match(param_type, passed_arg->evaluates_to_type, dg, lg)) {
-                             report_error(passed_arg, "Expected type '%s', but passed type '%s'", node_repr(param_type), node_repr(passed_arg->evaluates_to_type));
+                            report_error(passed_arg, "Expected type '%s', but passed type '%s'", node_repr(param_type), node_repr(passed_arg->evaluates_to_type));
                         }
                         // Then it's okay
                         passed_arg = passed_arg->next;
@@ -827,12 +877,34 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
                     if (passed_arg != NULL) {
                         report_error(node, "Passing more arguments than expected (passed %d)", passed_args_len);
                     }
+                    da_astnodes_pop(&contexts_stack, NULL);
 
-                    if (signature) {
+                    if (placeholder_types.length > 0) {
+                        // Create a new signature for the partial application
+                        ASTNode* new_sig = create_node(NODE_SIGNATURE_TYPE);
+                        ASTNode* head = NULL;
+                        ASTNode* tail = NULL;
+                        for (size_t i = 0; i < placeholder_types.length; i++) {
+                            ASTNode* p_type = placeholder_types.data[i];
+                            // Clone type
+                            ASTNode* p = create_node(p_type->type);
+                            p->as = p_type->as;
+                            if (!head) head = p;
+                            else tail->next = p;
+                            tail = p;
+                        }
+                        new_sig->as.signature.params = head;
+
+                        ASTNode* dg = specialized_params_types.length > 0 ? specialized_params_types.data[0] : NULL;
+                        ASTNode* lg = specialized_params_values.length > 0 ? specialized_params_values.data[0] : NULL;
+                        new_sig->as.signature.return_type = specialize_type(signature ? signature->as.signature.return_type : node->evaluates_to_type, dg, lg);
+                        node->evaluates_to_type = new_sig;
+                    } else if (signature) {
                         ASTNode* dg = specialized_params_types.length > 0 ? specialized_params_types.data[0] : NULL;
                         ASTNode* lg = specialized_params_values.length > 0 ? specialized_params_values.data[0] : NULL;
                         node->evaluates_to_type = specialize_type(signature->as.signature.return_type, dg, lg);
                     }
+                    da_free(&placeholder_types);
                     da_free(&specialized_params_types);
                     da_free(&specialized_params_values);
                 }
@@ -1445,11 +1517,12 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
             };
             case NODE_PLAIN_TYPE: {
                 UNAM_DEBUG("  type name=%s", node_repr(node));
-                 SymbolTableEntry* sym = find_symbol(current_scope, node->as.type.name);
-                 if (!sym) {
-                     report_error(node, "Referenced type '%s' is not defined", node_repr(node));
-                 }
+                SymbolTableEntry* sym = find_symbol(current_scope, node->as.type.name);
+                if (!sym) {
+                    report_error(node, "Referenced type '%s' is not defined", node_repr(node));
+                }
 
+                node->as.type.is_generic = sym->node->as.type.is_generic;
                 // Analyze generic arguments if provided
                 if (node->as.type.generic_args) {
                     da_analyze_frames_append(&stack, (AnalyzeFrame){ node->as.type.generic_args, PHASE_ENTER });
@@ -1460,7 +1533,7 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
             case NODE_SIGNATURE_TYPE: {
                 if (phase == PHASE_ENTER) {
                     node->evaluates_to_type = node;
-                    da_analyze_frames_append(&stack, (AnalyzeFrame){ node, PHASE_EXIT });
+                    // da_analyze_frames_append(&stack, (AnalyzeFrame){ node, PHASE_EXIT });
                     if (node->as.signature.params) {
                         da_analyze_frames_append(&stack, (AnalyzeFrame){ node->as.signature.params, PHASE_ENTER });
                     }
@@ -1763,19 +1836,76 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
                     // Create a NEW type node to avoid mutating the shared builtin
                     ASTNode* list_type = create_node(NODE_PLAIN_TYPE);
                     list_type->as.type.name = ast_strdup("List");
-                    list_type->as.type.generic_args = last_element_type;
+                    if (last_element_type) {
+                        list_type->as.type.generic_args = last_element_type;
+                    } else {
+                        list_type->as.type.generic_args = create_node(NODE_PLAIN_TYPE);
+                        list_type->as.type.generic_args->as.type.name = ast_strdup("T");
+                        list_type->as.type.generic_args->as.type.is_generic = true;
+                    }
                     node->evaluates_to_type = list_type;
                 }
                 break;
             };
             case NODE_PIPELINE: {
-                UNAM_DEBUG("NODE_PIPELINE not implemented");
-                exit(69);
+                if (phase == PHASE_ENTER) {
+                    da_astnodes_append(&contexts_stack, node);
+                    da_analyze_frames_append(&stack, (AnalyzeFrame){ node, PHASE_EXIT });
+                    da_analyze_frames_append(&stack, (AnalyzeFrame){ node, PHASE_MID });
+                    da_analyze_frames_append(&stack, (AnalyzeFrame){ node->as.pipeline.left, PHASE_ENTER });
+                } else if (phase == PHASE_MID) {
+                    // Left is analyzed. Now we can transform right.
+                    ASTNode* left = node->as.pipeline.left;
+                    ASTNode* right = node->as.pipeline.right;
+
+                    if (right->type == NODE_CALL) {
+                        // Search for placeholder
+                        ASTNode* arg = right->as.call.args;
+                        ASTNode* placeholder = NULL;
+                        while (arg) {
+                            if (arg->type == NODE_PLACEHOLDER) {
+                                placeholder = arg;
+                                break;
+                            }
+                            arg = arg->next;
+                        }
+
+                        if (placeholder) {
+                            // Physical replacement in the args list
+                            if (right->as.call.args == placeholder) {
+                                right->as.call.args = left;
+                                left->next = placeholder->next;
+                            } else {
+                                ASTNode* prev = right->as.call.args;
+                                while (prev && prev->next != placeholder) prev = prev->next;
+                                if (prev) {
+                                    prev->next = left;
+                                    left->next = placeholder->next;
+                                }
+                            }
+                        } else {
+                            // Prepend
+                            left->next = right->as.call.args;
+                            right->as.call.args = left;
+                        }
+                    } else {
+                        // Transform right into a call: right(left)
+                        ASTNode* call = create_node(NODE_CALL);
+                        call->as.call.callee = right;
+                        call->as.call.args = left;
+                        call->as.call.debug_name = (right->type == NODE_IDENTIFIER) ? ast_strdup(right->as.ident.name) : ast_strdup("<pipeline>");
+                        node->as.pipeline.right = call;
+                    }
+
+                    da_analyze_frames_append(&stack, (AnalyzeFrame){ node->as.pipeline.right, PHASE_ENTER });
+                } else if (phase == PHASE_EXIT) {
+                    node->evaluates_to_type = node->as.pipeline.right->evaluates_to_type;
+                    da_astnodes_pop(&contexts_stack, NULL);
+                }
                 break;
             };
             case NODE_PLACEHOLDER: {
-                UNAM_DEBUG("NODE_PLACEHOLDER not implemented");
-                exit(69);
+                // Nothing to do
                 break;
             };
             case NODE_MEMBER_ACCESS: {

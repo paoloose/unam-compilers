@@ -41,3 +41,37 @@ SymbolTableEntry* get_list_symbol()   {
     sym->node = list_decl;
     return sym;
 }
+SymbolTableEntry* get_print_symbol() {
+    ASTNode* print_func = calloc(1, sizeof *print_func);
+    print_func->type = NODE_FUNCTION;
+    print_func->as.function.name = ast_strdup("print");
+    print_func->as.function.is_lambda = false;
+
+    // Generic parameter T
+    ASTNode* t_param = calloc(1, sizeof *t_param);
+    t_param->type = NODE_PLAIN_TYPE;
+    t_param->as.type.name = ast_strdup("T");
+    print_func->as.function.generic_args = t_param;
+
+    // Function parameter what: T
+    ASTNode* what_param = calloc(1, sizeof *what_param);
+    what_param->type = NODE_FUNC_PARAMETER;
+    what_param->as.func_param.name = ast_strdup("what");
+    ASTNode* what_type = calloc(1, sizeof *what_type);
+    what_type->type = NODE_PLAIN_TYPE;
+    what_type->as.type.name = ast_strdup("T");
+    what_param->as.func_param.type_expr = what_type;
+    print_func->as.function.params = what_param;
+
+    // Signature
+    ASTNode* sig = calloc(1, sizeof *sig);
+    sig->type = NODE_SIGNATURE_TYPE;
+    sig->as.signature.params = what_param;
+    sig->as.signature.return_type = NULL; // returns void
+    print_func->evaluates_to_type = sig;
+
+    SymbolTableEntry* sym = calloc(1, sizeof *sym);
+    sym->name = ast_strdup("print");
+    sym->node = print_func;
+    return sym;
+}

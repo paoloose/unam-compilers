@@ -306,7 +306,13 @@ expr_no_block:
     | FLOAT_LIT { $$ = create_leaf_float($1); }
     | BOOL_LIT { $$ = create_leaf_bool($1); }
     | STRING_LIT { $$ = create_leaf_str($1); }
-    | IDENT { $$ = create_leaf_id($1); }
+    | IDENT {
+        if (strcmp($1, "_") == 0) {
+            $$ = create_node(NODE_PLACEHOLDER);
+        } else {
+            $$ = create_leaf_id($1);
+        }
+    }
     | IDENT '=' expr {
         $$ = create_node(NODE_ASSIGN);
         $$->as.assign.op = ast_strdup("=");
