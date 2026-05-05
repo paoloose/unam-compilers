@@ -63,10 +63,32 @@ static void pop_scope(Scope** current_scope) {
 bool types_are_equal(ASTNode* type1, ASTNode* type2) {
     if (!type1 && !type2) return true;
     if (!type1 || !type2) return false;
-    UNAM_ASSERT(type1->type == NODE_CONCRETE_TYPE || type1->type == NODE_GENERIC_TYPE || type2->type == NODE_CONCRETE_TYPE || type2->type == NODE_GENERIC_TYPE, "tried to compare non type nodes");
 
-    const char* type1_name = type1->as.type.name;
-    const char* type2_name = type2->as.type.name;
+    const char* type1_name = NULL;
+    ASTNode* g1 = NULL;
+    if (type1->type == NODE_CONCRETE_TYPE || type1->type == NODE_GENERIC_TYPE) {
+        type1_name = type1->as.type.name;
+        g1 = type1->as.type.generic_args;
+    } else if (type1->type == NODE_ENUM_DECL) {
+        type1_name = type1->as.enum_decl.name;
+        g1 = type1->as.enum_decl.generic_args;
+    } else if (type1->type == NODE_STRUCT_DECL) {
+        type1_name = type1->as.struct_decl.name;
+        g1 = type1->as.struct_decl.generic_args;
+    }
+
+    const char* type2_name = NULL;
+    ASTNode* g2 = NULL;
+    if (type2->type == NODE_CONCRETE_TYPE || type2->type == NODE_GENERIC_TYPE) {
+        type2_name = type2->as.type.name;
+        g2 = type2->as.type.generic_args;
+    } else if (type2->type == NODE_ENUM_DECL) {
+        type2_name = type2->as.enum_decl.name;
+        g2 = type2->as.enum_decl.generic_args;
+    } else if (type2->type == NODE_STRUCT_DECL) {
+        type2_name = type2->as.struct_decl.name;
+        g2 = type2->as.struct_decl.generic_args;
+    }
 
     // First check lexemes
     if (type1_name == NULL && type2_name != NULL) {
@@ -80,8 +102,6 @@ bool types_are_equal(ASTNode* type1, ASTNode* type2) {
     }
 
     // Then check generic args
-    ASTNode* g1 = type1->as.type.generic_args;
-    ASTNode* g2 = type2->as.type.generic_args;
     while (g1 && g2) {
         if (!types_are_equal(g1, g2)) {
             return false;
@@ -218,6 +238,9 @@ void add_symbol_unchecked(Scope* current_scope, const char* name, ASTNode* type_
         case NODE_ENUM_DECL: {
             break;
         };
+        case NODE_ENUM_VARIANT: {
+            break;
+        };
         case NODE_FUNCTION: {
             break;
         };
@@ -333,7 +356,10 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
                 if (phase == PHASE_ENTER) {
                     UNAM_DEBUG("  arg name=%s\n", parameter_name);
                     // We add the parameter to the symbols table, with the given type
-                    add_symbol_shadowed(current_scope, parameter_name, node);
+                    if (!add_symbol_unshadowed(current_scope, parameter_name, node)) {
+                        report_error(node, "Function parameter name '%s' is already defined", parameter_name);
+                        break;
+                    }
                     da_analyze_frames_append(&stack, (AnalyzeFrame){ node, PHASE_EXIT });
                     da_analyze_frames_append(&stack, (AnalyzeFrame){ node->as.func_param.type_expr, PHASE_ENTER });
                 } else if (phase == PHASE_EXIT) {
@@ -353,7 +379,9 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
             case NODE_FUNCTION: {
                 char* func_name = node->as.function.name;
                 bool is_lambda = node->as.function.is_lambda;
+
                 if (phase == PHASE_ENTER) {
+                    node->evaluates_to_type = node;
                     da_astnodes_append(&contexts_stack, node);
 
                     UNAM_DEBUG("function '%s'\n", func_name);
@@ -367,11 +395,8 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
 
                     da_analyze_frames_append(&stack, (AnalyzeFrame){ node, PHASE_EXIT });
 
-                    // Schedule body for analysis after signature is sealed in PHASE_MID
+                    // Schedule body for analysis after signature
                     da_analyze_frames_append(&stack, (AnalyzeFrame){ node->as.function.body, PHASE_ENTER });
-
-                    // PHASE_MID will "seal" the signature (set evaluates_to_type)
-                    da_analyze_frames_append(&stack, (AnalyzeFrame){ node, PHASE_MID });
 
                     if (node->as.function.return_type) {
                         da_analyze_frames_append(&stack, (AnalyzeFrame){ node->as.function.return_type, PHASE_ENTER });
@@ -379,34 +404,30 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
 
                     // For each function param
                     ASTNode* param = node->as.function.params;
-                    da_analyze_frames_reverse_mode_start(&stack);
                     while (param) {
                         ASTNode* param_type = param->as.func_param.type_expr;
                         UNAM_ASSERT(param->type == NODE_FUNC_PARAMETER, "function parameter must have NODE_FUNC_PARAMETER type");
                         UNAM_ASSERT(param_type != NULL && (param_type->type == NODE_CONCRETE_TYPE || param_type->type == NODE_GENERIC_TYPE), "invalid func_param type");
-                        // First we analyze the type of the parameter
-                        da_analyze_frames_append(&stack, (AnalyzeFrame){ param, PHASE_ENTER });
                         param = param->next;
                     }
-                    da_analyze_frames_reverse_mode_end(&stack);
 
                     // For each generic type param
                     ASTNode* generic_arg = node->as.function.generic_args;
-                    da_analyze_frames_reverse_mode_start(&stack);
                     while (generic_arg) {
                         // We add the generic type as symbol, and then analyze the node
                         UNAM_ASSERT(generic_arg->type == NODE_CONCRETE_TYPE, "generic type params must initially be concrete types");
                         // And we promote them to generic types, as they appear in the generic type parameters list
                         generic_arg->type = NODE_GENERIC_TYPE;
-                        add_symbol_unshadowed(current_scope, generic_arg->as.type.name, generic_arg);
-                        da_analyze_frames_append(&stack, (AnalyzeFrame){generic_arg, PHASE_ENTER});
+                        if (!add_symbol_unshadowed(current_scope, generic_arg->as.type.name, generic_arg)) {
+                            report_error(generic_arg, "Trying to name a generic type '%s', but it's already defined", generic_arg->as.type.name);
+                            break;
+                        }
                         generic_arg = generic_arg->next;
                     }
-                    da_analyze_frames_reverse_mode_end(&stack);
 
-                } else if (phase == PHASE_MID) {
-                    // Signature is now resolved. Seal the function type so recursive calls work.
-                    node->evaluates_to_type = node;
+                    da_analyze_frames_append(&stack, (AnalyzeFrame){ node->as.function.params, PHASE_ENTER });
+                    da_analyze_frames_append(&stack, (AnalyzeFrame){ node->as.function.generic_args, PHASE_ENTER });
+
                 } else if (phase == PHASE_EXIT) {
                     da_astnodes_pop(&contexts_stack, NULL);
                     pop_scope(&current_scope);
@@ -499,16 +520,32 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
                     else {
                         // TODO(NOTE): write a test dynamic function calls
                         calling_function = func->evaluates_to_type;
-                        if (calling_function == NULL || calling_function->type != NODE_FUNCTION) {
+                        if (calling_function == NULL || (calling_function->type != NODE_FUNCTION && calling_function->type != NODE_ENUM_VARIANT)) {
                             report_error(func, "Trying to call a non function '%s'", node_repr(func->evaluates_to_type));
                         }
                     }
                     // Set the call's evaluated type to the function's return type
-                    node->evaluates_to_type = calling_function->as.function.return_type;
+                    if (calling_function->type == NODE_FUNCTION) {
+                        node->evaluates_to_type = calling_function->as.function.return_type;
+                    } else if (calling_function->type == NODE_ENUM_VARIANT) {
+                        // A variant call evaluates to the enum type itself
+                        // We need to find the enum node. We can store it in the variant or find it.
+                        // For now, let's look it up in the variant's evaluates_to_type if we set it earlier.
+                        // Actually, I set variant->evaluates_to_type = enum_node for non-payload variants.
+                        // For payload variants, I set it to the variant itself.
+                        // Let's fix that in NODE_ENUM_VARIANT implementation.
+                        node->evaluates_to_type = calling_function->evaluates_to_type;
+                    }
 
                     // And now that we now a function is being called, we validate its arguments!
 
-                    ASTNode* expected_param = calling_function->as.function.params;
+                    ASTNode* expected_param = NULL;
+                    if (calling_function->type == NODE_FUNCTION) {
+                        expected_param = calling_function->as.function.params;
+                    } else if (calling_function->type == NODE_ENUM_VARIANT) {
+                        expected_param = calling_function->as.enum_variant.payload_types;
+                    }
+
                     ASTNode* passed_arg = node->as.call.args;
 
                     da_astnodes specialized_params_types;  // generic types that are now specialized (NODE_GENERIC_TYPE)
@@ -522,11 +559,16 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
                             report_error(node, "Expected argument, but none passed");
                             break;
                         }
-                        ASTNode* param_type = expected_param->as.func_param.type_expr;
-                        passed_args_len++;
                         // Check that types of arguments match
-                        UNAM_ASSERT(expected_param->type == NODE_FUNC_PARAMETER, "function arguments must be of type NODE_FUNC_PARAMETER");
-                        UNAM_ASSERT(expected_param->as.func_param.type_expr, "function arguments must be typed");
+                        ASTNode* param_type = NULL;
+                        if (expected_param->type == NODE_FUNC_PARAMETER) {
+                            param_type = expected_param->as.func_param.type_expr;
+                        } else {
+                            // For enum variants, payload_types is just a list of types
+                            param_type = expected_param;
+                        }
+
+                        passed_args_len++;
                         int param_node_type = param_type->type;
                         UNAM_ASSERT(param_node_type == NODE_CONCRETE_TYPE || param_node_type == NODE_GENERIC_TYPE, "function argument must be of correct type");
 
@@ -1173,13 +1215,66 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
                 break;
             };
             case NODE_ENUM_DECL: {
-                UNAM_DEBUG("NODE_ENUM_DECL not implemented");
-                exit(69);
+                const char* enum_name = node->as.enum_decl.name;
+
+                if (phase == PHASE_ENTER) {
+                    UNAM_DEBUG("enum name=%s\n", enum_name);
+                    da_astnodes_append(&contexts_stack, node);
+
+                    if (!add_symbol_unshadowed(current_scope, enum_name, node)) {
+                        report_error(node, "The type name for enum '%s' already exists", enum_name);
+                    }
+
+                    push_scope(&current_scope);
+                    node->scope = current_scope;
+
+                    // Register generic type parameters in the new scope
+                    ASTNode* enum_generic_arg = node->as.enum_decl.generic_args;
+                    while (enum_generic_arg) {
+                        enum_generic_arg->type = NODE_GENERIC_TYPE;
+                        add_symbol_unshadowed(current_scope, enum_generic_arg->as.type.name, enum_generic_arg);
+                        enum_generic_arg = enum_generic_arg->next;
+                    }
+                    if (node->as.enum_decl.generic_args) {
+                        da_analyze_frames_append(&stack, (AnalyzeFrame){ node->as.enum_decl.generic_args, PHASE_ENTER });
+                    }
+
+                    da_analyze_frames_append(&stack, (AnalyzeFrame){ node, PHASE_EXIT });
+
+                    // Schedule variants for analysis after sealing the type in PHASE_MID
+                    if (node->as.enum_decl.variants) {
+                        da_analyze_frames_append(&stack, (AnalyzeFrame){ node->as.enum_decl.variants, PHASE_ENTER });
+                    }
+
+                    // PHASE_MID will seal the type so variants can reference it
+                    da_analyze_frames_append(&stack, (AnalyzeFrame){ node, PHASE_MID });
+                } else if (phase == PHASE_MID) {
+                    node->evaluates_to_type = node;
+                } else if (phase == PHASE_EXIT) {
+                    da_astnodes_pop(&contexts_stack, NULL);
+                    pop_scope(&current_scope);
+                }
                 break;
             };
             case NODE_ENUM_VARIANT: {
-                UNAM_DEBUG("NODE_ENUM_VARIANT not implemented");
-                exit(69);
+                const char* variant_name = node->as.enum_variant.name;
+                UNAM_DEBUG("  variant: %s\n", variant_name);
+
+                // We add the variant to the current scope (which should be the enum's scope)
+                if (!add_symbol_unshadowed(current_scope, variant_name, node)) {
+                    report_error(node, "Variant '%s' is already defined in this enum", variant_name);
+                }
+
+                // A variant always evaluates to its parent enum type
+                size_t i = contexts_stack.length;
+                ASTNode* enum_node = NULL;
+                while (i-- > 0) {
+                    if (contexts_stack.data[i]->type == NODE_ENUM_DECL) {
+                        enum_node = contexts_stack.data[i];
+                        break;
+                    }
+                }
+                node->evaluates_to_type = enum_node;
                 break;
             };
             case NODE_STRUCT_DECL: {
@@ -1316,8 +1411,63 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
                 break;
             };
             case NODE_MEMBER_ACCESS: {
-                UNAM_DEBUG("NODE_MEMBER_ACCESS not implemented");
-                exit(69);
+                ASTNode* object = node->as.member.object;
+                ASTNode* member = node->as.member.member;
+                const char* op = node->as.member.op;
+
+                if (phase == PHASE_ENTER) {
+                    da_analyze_frames_append(&stack, (AnalyzeFrame){ node, PHASE_EXIT });
+                    da_analyze_frames_append(&stack, (AnalyzeFrame){ object, PHASE_ENTER });
+                } else if (phase == PHASE_EXIT) {
+                    if (strcmp(op, "::") == 0) {
+                        // For enum::variant
+                        ASTNode* object_type = object->evaluates_to_type;
+                        if (!object_type) {
+                            report_error(object, "Cannot access member of void type");
+                            break;
+                        }
+
+                        if (object_type->type != NODE_ENUM_DECL) {
+                            report_error(object, "Operator :: can only be used with Enums, but got %s", node_repr(object_type));
+                            break;
+                        }
+
+                        Scope* object_scope = (Scope*)object_type->scope;
+                        if (!object_scope) {
+                            report_error(object, "Type %s has no scope", node_repr(object_type));
+                            break;
+                        }
+
+                        const char* member_name = member->as.ident.name;
+                        SymbolTableEntry* sym = object_scope->symbols;
+                        SymbolTableEntry* found = NULL;
+                        while (sym) {
+                            if (strcmp(sym->name, member_name) == 0) {
+                                found = sym;
+                                break;
+                            }
+                            sym = sym->next;
+                        }
+
+                        if (!found) {
+                            report_error(member, "Member '%s' not found in %s", member_name, node_repr(object_type));
+                            break;
+                        }
+
+                        // We evaluate to the node itself if it's a "callable" thing (variant with payloads)
+                        // otherwise we evaluate to its type (the Enum)
+                        if (found->node->type == NODE_ENUM_VARIANT && found->node->as.enum_variant.payload_types) {
+                            node->evaluates_to_type = found->node;
+                        } else if (found->node->evaluates_to_type) {
+                            node->evaluates_to_type = found->node->evaluates_to_type;
+                        } else {
+                            node->evaluates_to_type = found->node;
+                        }
+                    } else {
+                        UNAM_DEBUG("Member access operator %s not implemented", op);
+                        exit(69);
+                    }
+                }
                 break;
             };
             case NODE_RANGE: {
