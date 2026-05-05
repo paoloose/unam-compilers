@@ -14,6 +14,10 @@ if [ ! -f "Makefile" ]; then
     exit 1
 fi
 
+if [ ! -z $1 ]; then
+    TESTS_DIR=$1
+fi
+
 # Build first
 make all
 if [ $? -ne 0 ]; then
