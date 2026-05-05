@@ -1,29 +1,41 @@
+fn print<T>(what: T) { }
+
+enum Result<T, E> {
+    Ok(T);
+    Err(E);
+}
+
+enum Option<T> {
+    Some(T);
+    None;
+}
+
 // Example: Recursive Fibonacci with Result
-fn fibonacci(n: int) {
+fn fibonacci(n: int) -> Result<int, string> {
     if (n < 0) {
-        return Err("Negative number not allowed");
-    };
+        return Result::Err("Negative number not allowed");
+    }
 
     if (n == 0 || n == 1) {
-        return Ok(n);
-    };
+        return Result::Ok(n);
+    }
 
     match (fibonacci(n - 1)) {
-        Ok(fib_n_1) -> {
+        Result::Ok(fib_n_1) -> {
             match (fibonacci(n - 2)) {
-                Ok(fib_n_2) -> Ok(fib_n_1 + fib_n_2);
+                Result::Ok(fib_n_2) -> Result::Ok(fib_n_1 + fib_n_2);
                 err -> err;
             }
-        };
+        }
         err -> err;
     }
-};
+}
 
 fn main() {
     for (let i = 0; i < 10; i = i + 1) {
         match (fibonacci(i)) {
-            Ok(result) -> print("fib(" + i + ") = " + result);
-            Err(msg) -> print("Error: " + msg);
-        };
-    };
+            Result::Ok(result) -> print("fib(" + i + ") = " + result);
+            Result::Err(msg) -> print("Error: " + msg);
+        }
+    }
 }

@@ -73,13 +73,21 @@ void infer_specializations(ASTNode* expected, ASTNode* actual, da_astnodes* type
         for (size_t i = 0; i < types->length; i++) {
             if (strcmp(types->data[i]->as.type.name, expected->as.type.name) == 0) return;
         }
-        da_astnodes_append(types, expected);
+        // We create a temporary node for the mapping to avoid mutating the original declaration
+        ASTNode* type_mapping = create_node(NODE_PLAIN_TYPE);
+        type_mapping->as.type.name = ast_strdup(expected->as.type.name);
+
+        da_astnodes_append(types, type_mapping);
         da_astnodes_append(values, actual);
         // Link them for types_match (which expects a linked list)
         if (values->length > 1) {
             values->data[values->length - 2]->next = actual;
         }
+        if (types->length > 1) {
+            types->data[types->length - 2]->next = type_mapping;
+        }
         actual->next = NULL;
+        type_mapping->next = NULL;
     } else if (expected->type == NODE_SIGNATURE_TYPE && actual->type == NODE_SIGNATURE_TYPE) {
         ASTNode* ep = expected->as.signature.params;
         ASTNode* ap = actual->as.signature.params;
@@ -105,6 +113,28 @@ ASTNode* specialize_type(ASTNode* type, ASTNode* decl_gen, ASTNode* lit_gen) {
             }
             dg = dg->next;
             lg = lg->next;
+        }
+
+        // If not a generic param, it might still have generic args that need specialization
+        if (type->as.type.generic_args) {
+             ASTNode* new_type = create_node(NODE_PLAIN_TYPE);
+             new_type->as.type.name = ast_strdup(type->as.type.name);
+             ASTNode* head = NULL;
+             ASTNode* tail = NULL;
+             ASTNode* arg = type->as.type.generic_args;
+             while (arg) {
+                 ASTNode* sa = specialize_type(arg, decl_gen, lit_gen);
+                 // We need to clone sa if it's not a new node
+                 ASTNode* cp = create_node(sa->type);
+                 cp->as = sa->as;
+                 if (!head) head = cp;
+                 else tail->next = cp;
+                 tail = cp;
+                 arg = arg->next;
+             }
+             new_type->as.type.generic_args = head;
+             new_type->evaluates_to_type = new_type;
+             return new_type;
         }
     } else if (type->type == NODE_SIGNATURE_TYPE) {
         ASTNode* new_sig = create_node(NODE_SIGNATURE_TYPE);
@@ -205,7 +235,14 @@ bool types_match(ASTNode* expected, ASTNode* actual, ASTNode* decl_gen, ASTNode*
         actual_args = actual->as.struct_decl.generic_args;
     }
 
-    if (!expected_name || !actual_name || strcmp(expected_name, actual_name) != 0) return false;
+    if (!expected_name || !actual_name) return false;
+    if (strcmp(expected_name, actual_name) != 0) {
+        if ((expected->type == NODE_PLAIN_TYPE && expected->as.type.is_generic) ||
+            (actual->type == NODE_PLAIN_TYPE && actual->as.type.is_generic)) {
+            return true;
+        }
+        return false;
+    }
 
     // Deep compare generic args
     ASTNode* eg = expected_args;
@@ -392,6 +429,90 @@ void analyze_pattern(ASTNode* pattern, ASTNode* subject_type, Scope* current_sco
             report_error(pattern, "Pattern type %s does not match subject type %s", node_repr(lit_type), node_repr(subject_type));
         }
         pattern->evaluates_to_type = lit_type;
+    } else if (pattern->type == NODE_LIST_PATTERN) {
+        // Check if subject_type is List<T>
+        if (subject_type->type != NODE_PLAIN_TYPE || strcmp(subject_type->as.type.name, "List") != 0) {
+            report_error(pattern, "Cannot match list pattern against non-list type %s", node_repr(subject_type));
+            return;
+        }
+        ASTNode* element_type = subject_type->as.type.generic_args;
+        if (!element_type) {
+            // Fallback for untyped lists if they exist
+            element_type = find_symbol(current_scope, "int")->node; // reasonable default for this language?
+        }
+
+        ASTNode* item = pattern->as.list_pattern.items;
+        while (item) {
+            if (item->type == NODE_PATTERN_CONS) {
+                if (item->as.pattern_cons.name) {
+                    add_symbol_shadowed(current_scope, item->as.pattern_cons.name, subject_type);
+                }
+                if (item->next) {
+                    report_error(item, "Spread pattern '..' must be the last item in a list pattern");
+                }
+            } else {
+                analyze_pattern(item, element_type, current_scope);
+            }
+            item = item->next;
+        }
+        pattern->evaluates_to_type = subject_type;
+    } else if (pattern->type == NODE_ENUM_PATTERN) {
+        // Enum destructuring: Option::Some(x)
+        ASTNode* variant_ident = pattern->as.enum_pattern.variant;
+        ASTNode* variant_node = NULL;
+        ASTNode* enum_decl = NULL;
+
+        if (variant_ident->type == NODE_MEMBER_ACCESS) {
+            ASTNode* obj = variant_ident->as.member.object;
+            SymbolTableEntry* enum_sym = find_symbol(current_scope, obj->as.ident.name);
+            if (enum_sym && enum_sym->node->type == NODE_ENUM_DECL) {
+                enum_decl = enum_sym->node;
+                // Find variant
+                ASTNode* v = enum_decl->as.enum_decl.variants;
+                while (v) {
+                    if (strcmp(v->as.enum_variant.name, variant_ident->as.member.member->as.ident.name) == 0) {
+                        variant_node = v;
+                        break;
+                    }
+                    v = v->next;
+                }
+            }
+        } else if (variant_ident->type == NODE_IDENTIFIER) {
+            // Check for unqualified variant name if needed
+        }
+
+        if (!variant_node) {
+            report_error(pattern, "Invalid enum variant pattern: %s", node_repr(variant_ident));
+            return;
+        }
+
+        // Bind arguments
+        ASTNode* arg = pattern->as.enum_pattern.args;
+        ASTNode* payload_type = variant_node->as.enum_variant.payload_types;
+
+        // Infer specializations from subject_type if it's a specialized enum
+        ASTNode* dg = NULL;
+        ASTNode* lg = NULL;
+        if (enum_decl && subject_type->type == NODE_PLAIN_TYPE && subject_type->as.type.generic_args) {
+            dg = enum_decl->as.enum_decl.generic_args;
+            lg = subject_type->as.type.generic_args;
+        }
+
+        while (arg && payload_type) {
+            ASTNode* specialized_payload = specialize_type(payload_type, dg, lg);
+            analyze_pattern(arg, specialized_payload, current_scope);
+            arg = arg->next;
+            payload_type = payload_type->next;
+        }
+        pattern->evaluates_to_type = subject_type;
+    } else if (pattern->type == NODE_RANGE) {
+
+    } else if (pattern->type == NODE_MEMBER_ACCESS) {
+
+    }
+    else {
+        exit(pattern->type);
+        UNAM_ASSERT(false, "unkown pattern type, could not analyze");
     }
 }
 
@@ -522,6 +643,8 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
                     ASTNode* generic_arg = node->as.function.generic_args;
                     while (generic_arg) {
                         generic_arg->type = NODE_PLAIN_TYPE;
+                        generic_arg->as.type.is_generic = true;
+                        generic_arg->evaluates_to_type = generic_arg;
                         if (!add_symbol_unshadowed(current_scope, generic_arg->as.type.name, generic_arg)) {
                             report_error(generic_arg, "Trying to name a generic type '%s', but it's already defined", generic_arg->as.type.name);
                             break;
@@ -1399,11 +1522,10 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
                     ASTNode* enum_generic_arg = node->as.enum_decl.generic_args;
                     while (enum_generic_arg) {
                         enum_generic_arg->type = NODE_PLAIN_TYPE;
+                        enum_generic_arg->as.type.is_generic = true;
                         add_symbol_unshadowed(current_scope, enum_generic_arg->as.type.name, enum_generic_arg);
+                        enum_generic_arg->evaluates_to_type = enum_generic_arg;
                         enum_generic_arg = enum_generic_arg->next;
-                    }
-                    if (node->as.enum_decl.generic_args) {
-                        da_analyze_frames_append(&stack, (AnalyzeFrame){ node->as.enum_decl.generic_args, PHASE_ENTER });
                     }
 
                     da_analyze_frames_append(&stack, (AnalyzeFrame){ node, PHASE_EXIT });
@@ -1442,6 +1564,11 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
                     }
                 }
                 node->evaluates_to_type = enum_node;
+
+                // Analyze payload types
+                if (node->as.enum_variant.payload_types) {
+                    da_analyze_frames_append(&stack, (AnalyzeFrame){ node->as.enum_variant.payload_types, PHASE_ENTER });
+                }
                 break;
             };
             case NODE_STRUCT_DECL: {
@@ -1680,26 +1807,72 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
 
                         // Search in variants
                         ASTNode* variant = object_type->as.enum_decl.variants;
-                        ASTNode* found = NULL;
+                        ASTNode* found_variant = NULL;
                         while (variant) {
                             if (strcmp(variant->as.enum_variant.name, member_name) == 0) {
-                                found = variant;
+                                found_variant = variant;
                                 break;
                             }
                             variant = variant->next;
                         }
 
-                        if (!found) {
+                        if (!found_variant) {
                             report_error(member, "Variant '%s' not found in enum %s", member_name, object_type->as.enum_decl.name);
                             break;
                         }
 
-                        // We evaluate to the variant node itself if it's "callable" (has payloads)
-                        // otherwise we evaluate to the enum type (object_type)
-                        if (found->as.enum_variant.payload_types) {
-                            node->evaluates_to_type = found;
+                        if (node->as.member.args) {
+                            // Variant constructor call: Result::Ok(n)
+                            ASTNode* expected_payload = found_variant->as.enum_variant.payload_types;
+                            ASTNode* actual_arg = node->as.member.args;
+                            da_astnodes s_types, s_values;
+                            da_astnodes_init(&s_types, 4);
+                            da_astnodes_init(&s_values, 4);
+
+                            int arg_count = 0;
+                            while (expected_payload && actual_arg) {
+                                infer_specializations(expected_payload, actual_arg->evaluates_to_type, &s_types, &s_values);
+                                expected_payload = expected_payload->next;
+                                actual_arg = actual_arg->next;
+                                arg_count++;
+                            }
+
+                            if (expected_payload || actual_arg) {
+                                report_error(node, "Argument count mismatch for variant '%s'", member_name);
+                            }
+
+                            // Now specialize the enum type
+                            ASTNode* dg = s_types.length > 0 ? s_types.data[0] : NULL;
+                            ASTNode* lg = s_values.length > 0 ? s_values.data[0] : NULL;
+
+                            ASTNode* enum_type = create_node(NODE_PLAIN_TYPE);
+                            enum_type->as.type.name = ast_strdup(object_type->as.enum_decl.name);
+
+                            ASTNode* head = NULL;
+                            ASTNode* tail = NULL;
+                            ASTNode* g_param = object_type->as.enum_decl.generic_args;
+                            while (g_param) {
+                                ASTNode* sp = specialize_type(g_param, dg, lg);
+                                ASTNode* cp = create_node(sp->type);
+                                cp->as = sp->as;
+                                if (!head) head = cp;
+                                else tail->next = cp;
+                                tail = cp;
+                                g_param = g_param->next;
+                            }
+                            enum_type->as.type.generic_args = head;
+                            enum_type->evaluates_to_type = enum_type;
+                            node->evaluates_to_type = enum_type;
+
+                            da_free(&s_types);
+                            da_free(&s_values);
                         } else {
-                            node->evaluates_to_type = object_type;
+                            // No arguments: evaluates to the variant itself or the enum if payload-less
+                            if (found_variant->as.enum_variant.payload_types) {
+                                node->evaluates_to_type = found_variant;
+                            } else {
+                                node->evaluates_to_type = object_type;
+                            }
                         }
                     } else if (strcmp(op, ".") == 0) {
                         // Instance access (.) is only for Struct instances

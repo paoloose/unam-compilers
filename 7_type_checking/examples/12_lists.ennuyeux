@@ -1,11 +1,18 @@
-fn head(list: List<T>) {
+fn print<T>(what: T) { }
+
+enum Option<T> {
+    Some(T);
+    None;
+}
+
+fn head<T>(list: List<T>) -> Option<T> {
     match (list) {
-        [first, ..rest] -> Some(first);
-        _ -> None;
+        [first, ..rest] -> Option::Some(first);
+        _ -> Option::None;
     }
 }
 
-fn sum_list(list: List<T>) {
+fn sum_list(list: List<int>) -> int {
     match (list) {
         [x, ..rest] -> x + sum_list(rest);
         _ -> 0;
@@ -27,15 +34,15 @@ fn main() {
 
     // head function
     match (head(numbers)) {
-        Some(x) -> print("Head: " + x);
-        None -> print("Empty list");
+        Option::Some(x) -> print("Head: " + x);
+        Option::None -> print("Empty list");
     };
 
     // Empty list
     let empty = [];
     match (head(empty)) {
-        Some(x) -> print("Head: " + x);
-        None -> print("Empty list");
+        Option::Some(x) -> print("Head: " + x);
+        Option::None -> print("Empty list");
     };
 
     print("Sum: " + sum_list(numbers));

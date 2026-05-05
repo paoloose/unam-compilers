@@ -119,6 +119,13 @@ static void build_repr(ASTNode* node) {
         case NODE_SCOPE:
             append_repr("{ scope }");
             break;
+        case NODE_PATTERN_CONS:
+            append_repr("..");
+            if (node->as.pattern_cons.name) append_repr(node->as.pattern_cons.name);
+            break;
+        case NODE_LIST_PATTERN:
+            append_repr("[pattern]");
+            break;
         default:
             snprintf(temp, sizeof(temp), "<node %d>", node->type);
             append_repr(temp);
@@ -147,14 +154,44 @@ void print_ast(ASTNode* node, int indent) {
     PRINT_INDEN(indent - 1);
 
     const char* type_names[] = {
-        "NODE_PROGRAM", "NODE_FUNCTION", "NODE_LET", "NODE_ASSIGN",
-        "NODE_IF", "NODE_FOR", "NODE_LOOP", "NODE_MATCH",
-        "NODE_MATCH_ARM", "NODE_RETURN", "NODE_BREAK", "NODE_IDENT_LIST", "NODE_FUNC_PARAMETER",
-        "NODE_BINARY_OP", "NODE_UNARY_OP", "NODE_IDENTIFIER", "NODE_PLAIN_TYPE", "NODE_SIGNATURE_TYPE",
-        "NODE_INT_LITERAL", "NODE_FLOAT_LITERAL", "NODE_BOOL_LITERAL", "NODE_STRING_LITERAL", "NODE_CALL",
-        "NODE_ENUM_DECL", "NODE_ENUM_VARIANT", "NODE_STRUCT_DECL", "NODE_STRUCT_LITERAL", "NODE_STRUCT_FIELD",
-        "NODE_LIST_LITERAL", "NODE_LIST_PATTERN", "NODE_PIPELINE", "NODE_PLACEHOLDER", "NODE_MEMBER_ACCESS",
-        "NODE_RANGE", "NODE_SCOPE", "NODE_FOREACH"
+        "NODE_PROGRAM",
+        "NODE_FUNCTION",
+        "NODE_LET",
+        "NODE_ASSIGN",
+        "NODE_IF",
+        "NODE_FOR",
+        "NODE_LOOP",
+        "NODE_MATCH",
+        "NODE_MATCH_ARM",
+        "NODE_RETURN",
+        "NODE_BREAK",
+        "NODE_IDENT_LIST",
+        "NODE_FUNC_PARAMETER",
+        "NODE_BINARY_OP",
+        "NODE_UNARY_OP",
+        "NODE_IDENTIFIER",
+        "NODE_PLAIN_TYPE",
+        "NODE_SIGNATURE_TYPE",
+        "NODE_INT_LITERAL",
+        "NODE_FLOAT_LITERAL",
+        "NODE_BOOL_LITERAL",
+        "NODE_STRING_LITERAL",
+        "NODE_CALL",
+        "NODE_ENUM_DECL",
+        "NODE_ENUM_VARIANT",
+        "NODE_STRUCT_DECL",
+        "NODE_STRUCT_LITERAL",
+        "NODE_STRUCT_FIELD",
+        "NODE_LIST_LITERAL",
+        "NODE_LIST_PATTERN",
+        "NODE_PIPELINE",
+        "NODE_PLACEHOLDER",
+        "NODE_MEMBER_ACCESS",
+        "NODE_RANGE",
+        "NODE_SCOPE",
+        "NODE_FOREACH",
+        "NODE_PATTERN_CONS",
+        "NODE_ENUM_PATTERN"
     };
 
     printf(UNAM_MAGENTA "[" UNAM_BLUE "%s" UNAM_MAGENTA "]" UNAM_RESET, type_names[node->type]);
@@ -169,6 +206,11 @@ void print_ast(ASTNode* node, int indent) {
     if (node->evaluates_to_type) {
         printf(" type: %s", node_repr(node->evaluates_to_type));
     }
+    if (node->type == NODE_FUNCTION) {
+        if (node->as.function.return_type) {
+            printf(" returns: %s", node_repr(node->as.function.return_type));
+        }
+    }
 
     printf("\n");
 
@@ -178,9 +220,6 @@ void print_ast(ASTNode* node, int indent) {
             print_ast(node->as.program.body, indent + 1);
             break;
         case NODE_FUNCTION:
-            if (node->as.function.return_type) {
-                printf(" returns: %s", node_repr(node->as.function.return_type));
-            }
             print_ast(node->as.function.params, indent + 1);
             print_ast(node->as.function.generic_args, indent + 1);
             print_ast(node->as.function.body, indent + 1);
@@ -283,10 +322,13 @@ void print_ast(ASTNode* node, int indent) {
         case NODE_MEMBER_ACCESS:
             print_ast(node->as.member.object, indent + 1);
             print_ast(node->as.member.member, indent + 1);
+            print_ast(node->as.member.args, indent + 1);
             break;
         case NODE_RANGE:
             print_ast(node->as.range.start, indent + 1);
             print_ast(node->as.range.end, indent + 1);
+            break;
+        case NODE_PATTERN_CONS:
             break;
         default:
             break;

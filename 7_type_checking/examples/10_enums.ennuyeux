@@ -8,7 +8,7 @@ enum Color {
 }
 
 enum Message {
-    Text(String);
+    Text(string);
     Number(int);
     Pair(int, int);
 }

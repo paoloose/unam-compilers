@@ -32,7 +32,7 @@ typedef enum {
     /*14*/ NODE_UNARY_OP,
     /*15*/ NODE_IDENTIFIER,
     /*16*/ NODE_PLAIN_TYPE,
-    /* 17*/ NODE_SIGNATURE_TYPE,
+    /*17*/ NODE_SIGNATURE_TYPE,
     /*18*/ NODE_INT_LITERAL,
     /*19*/ NODE_FLOAT_LITERAL,
     /*20*/ NODE_BOOL_LITERAL,
@@ -51,6 +51,8 @@ typedef enum {
     /*33*/ NODE_RANGE,
     /*34*/ NODE_SCOPE,
     /*35*/ NODE_FOREACH,
+    /*36*/ NODE_PATTERN_CONS,
+    /*37*/ NODE_ENUM_PATTERN,
 } NodeType;
 
 // note: I may use a union in the future to save some memory
@@ -210,6 +212,7 @@ struct ASTNode {
         struct {
             const char* name;
             ASTNode* generic_args;
+            bool is_generic;     /* true if this is a generic parameter like T */
         } type;
 
         /* NODE_INT_LITERAL */
@@ -285,7 +288,7 @@ struct ASTNode {
 
         /* NODE_LIST_PATTERN */
         struct {
-            ASTNode* items;      /* tail may contain placeholder(rest) */
+            ASTNode* items; /* may only contain: NODE_PATTERN_CONS, NODE_PLAIN_TYPE, NODE_IDENTIFIER (that may be "_") */
         } list_pattern;
 
         /* NODE_PIPELINE */
@@ -304,6 +307,7 @@ struct ASTNode {
             char* op;            /* "." or "::" */
             ASTNode* object;
             ASTNode* member;
+            ASTNode* args;       /* arguments if it's a variant constructor call */
         } member;
 
         /* NODE_RANGE */
@@ -312,6 +316,17 @@ struct ASTNode {
             ASTNode* start;
             ASTNode* end;
         } range;
+
+        /* NODE_PATTERN_CONS */
+        struct {
+            char* name; /* optional name for binding, e.g. "rest" in "..rest" */
+        } pattern_cons;
+
+        /* NODE_ENUM_PATTERN */
+        struct {
+            ASTNode* variant; /* NODE_MEMBER_ACCESS or NODE_IDENTIFIER */
+            ASTNode* args;    /* pattern_list */
+        } enum_pattern;
     } as;
 };
 

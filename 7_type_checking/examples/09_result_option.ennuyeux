@@ -1,37 +1,49 @@
+fn print<T>(what: T) { }
+
+enum Result<T, E> {
+    Ok(T);
+    Err(E);
+}
+
+enum Option<T> {
+    Some(T);
+    None;
+}
+
 // Example: Error Handling with Result and Option
 fn safe_divide(a: int, b: int) {
     if (b == 0) {
-        return Err("Division by zero");
-    };
-    Ok(a / b)
+        return Result::Err("Division by zero");
+    }
+    Result::Ok(a / b)
 }
 
 fn find_index(list: List<int>, target: int) {
     // Returns Some(index) or None
     for (let i = 0; i < 5; i = i + 1) {
         if (list[i] == target) {
-            return Some(i);
-        };
-    };
-    None
+            return Option::Some(i);
+        }
+    }
+    Option::None
 }
 
 fn main() {
     // Result usage
     match (safe_divide(10, 2)) {
-        Ok(result) -> print("10 / 2 = " + result);
-        Err(msg) -> print("Error: " + msg);
-    };
+        Result::Ok(result) -> print("10 / 2 = " + result);
+        Result::Err(msg) -> print("Error: " + msg);
+    }
 
     match (safe_divide(10, 0)) {
-        Ok(result) -> print("10 / 0 = " + result);
-        Err(msg) -> print("Error: " + msg);
-    };
+        Result::Ok(result) -> print("10 / 0 = " + result);
+        Result::Err(msg) -> print("Error: " + msg);
+    }
 
     // Option usage
     let idx = find_index([10, 20, 30], 20);
     match (idx) {
-        Some(i) -> print("Found at index " + i);
-        None -> print("Not found");
-    };
+        Option::Some(i) -> print("Found at index " + i);
+        Option::None -> print("Not found");
+    }
 }
