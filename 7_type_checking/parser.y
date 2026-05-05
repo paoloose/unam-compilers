@@ -454,18 +454,35 @@ struct_literal_field:
     ;
 
 control_expr:
-    IF '(' expr ')' '{' block_body '}' %prec LOWER_THAN_ELSE {
+    IF expr '{' block_body '}' %prec LOWER_THAN_ELSE %dprec 2 {
+        $$ = create_node(NODE_IF);
+        $$->as.if_expr.cond = $2;
+        $$->as.if_expr.then_body = $4;
+    }
+    | IF expr '{' block_body '}' ELSE '{' block_body '}' %dprec 2 {
+        $$ = create_node(NODE_IF);
+        $$->as.if_expr.cond = $2;
+        $$->as.if_expr.then_body = $4;
+        $$->as.if_expr.else_body = $8;
+    }
+    | IF expr '{' block_body '}' ELSE control_expr %dprec 2 {
+        $$ = create_node(NODE_IF);
+        $$->as.if_expr.cond = $2;
+        $$->as.if_expr.then_body = $4;
+        $$->as.if_expr.else_body = $7;
+    }
+    | IF '(' expr ')' '{' block_body '}' %prec LOWER_THAN_ELSE %dprec 1 {
         $$ = create_node(NODE_IF);
         $$->as.if_expr.cond = $3;
         $$->as.if_expr.then_body = $6;
     }
-    | IF '(' expr ')' '{' block_body '}' ELSE '{' block_body '}' {
+    | IF '(' expr ')' '{' block_body '}' ELSE '{' block_body '}' %dprec 1 {
         $$ = create_node(NODE_IF);
         $$->as.if_expr.cond = $3;
         $$->as.if_expr.then_body = $6;
         $$->as.if_expr.else_body = $10;
     }
-    | IF '(' expr ')' '{' block_body '}' ELSE control_expr {
+    | IF '(' expr ')' '{' block_body '}' ELSE control_expr %dprec 1 {
         $$ = create_node(NODE_IF);
         $$->as.if_expr.cond = $3;
         $$->as.if_expr.then_body = $6;
@@ -490,6 +507,19 @@ control_expr:
         $$->as.for_expr.step = $7;
         $$->as.for_expr.body = $10;
         $$->as.for_expr.else_body = $14;
+    }
+    | FOR IDENT IN expr '{' block_body '}' {
+        $$ = create_node(NODE_FOREACH);
+        $$->as.foreach_expr.binded_term = ast_strdup($2);
+        $$->as.foreach_expr.iterator = $4;
+        $$->as.foreach_expr.body = $6;
+    }
+    | FOR IDENT IN expr '{' block_body '}' ELSE '{' block_body '}' {
+        $$ = create_node(NODE_FOREACH);
+        $$->as.foreach_expr.binded_term = ast_strdup($2);
+        $$->as.foreach_expr.iterator = $4;
+        $$->as.foreach_expr.body = $6;
+        $$->as.foreach_expr.else_body = $10;
     }
     | FOR IDENT IN '(' expr ')' '{' block_body '}' {
         $$ = create_node(NODE_FOREACH);
