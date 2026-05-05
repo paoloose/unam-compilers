@@ -1,3 +1,5 @@
+fn print<T>(what: T) { }
+
 // Example: Enum Declarations
 enum Color {
     Red;

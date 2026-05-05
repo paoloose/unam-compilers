@@ -1119,7 +1119,7 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
                         bool right_is_float = strcmp(type_right_name, "float") == 0;
 
                         bool is_int_sum = left_is_int && right_is_int;
-                        bool is_float_sum = (left_is_int && right_is_float) || (left_is_float && right_is_int);
+                        bool is_float_sum = (left_is_float && right_is_float) || (left_is_int && right_is_float) || (left_is_float && right_is_int);
 
                         if (is_int_sum) {
                             node->evaluates_to_type = find_symbol(current_scope, "int")->node;
@@ -1135,7 +1135,7 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
                         bool right_is_float = strcmp(type_right_name, "float") == 0;
 
                         bool is_int_diff = left_is_int && right_is_int;
-                        bool is_float_diff = (left_is_int && right_is_float) || (left_is_float && right_is_int);
+                        bool is_float_diff = (left_is_float && right_is_float) || (left_is_int && right_is_float) || (left_is_float && right_is_int);
 
                         if (is_int_diff) {
                             node->evaluates_to_type = find_symbol(current_scope, "int")->node;
