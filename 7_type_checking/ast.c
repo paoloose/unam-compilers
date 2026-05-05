@@ -159,9 +159,11 @@ void print_ast(ASTNode* node, int indent) {
             print_ast(node->as.program.body, indent + 1);
             break;
         case NODE_FUNCTION:
+            if (node->as.function.return_type) {
+                printf("returns(%s)", node->as.function.return_type->as.type.name);
+            }
             print_ast(node->as.function.params, indent + 1);
             print_ast(node->as.function.generic_args, indent + 1);
-            print_ast(node->as.function.return_type, indent + 1);
             print_ast(node->as.function.body, indent + 1);
             break;
 
