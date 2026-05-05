@@ -7,10 +7,10 @@ fn main() {
     let age = 25;
 
     // if-else chain
-    if (age < 13) {
+    if age < 13 {
         print("You are a child");
     }
-    else if (age < 20) {
+    else if age < 20 {
         print("You are a teenager");
     }
     else {
@@ -18,6 +18,6 @@ fn main() {
     }
 
     // if as expression
-    let category: string = if (age >= 18) { "Adult" } else { "Minor" };
+    let category: string = if age >= 18 { "Adult" } else { "Minor" };
     print("Category: " + category);
 }

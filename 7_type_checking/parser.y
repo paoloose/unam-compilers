@@ -187,11 +187,11 @@ block_body:
         $$ = create_node(NODE_SCOPE);
         $$->as.scope.body = NULL;
     }
-    | stmt_seq %dprec 2 {
+    | stmt_seq %dprec 1 {
         $$ = create_node(NODE_SCOPE);
         $$->as.scope.body = $1;
     }
-    | stmt_seq expr %dprec 1 {
+    | stmt_seq expr %dprec 2 {
         ASTNode* n = $1;
         while(n->next) n = n->next;
         ASTNode* ret_node = create_node(NODE_RETURN);
@@ -202,7 +202,7 @@ block_body:
         $$ = create_node(NODE_SCOPE);
         $$->as.scope.body = $1;
     }
-    | expr %dprec 1 {
+    | expr %dprec 2 {
         ASTNode* ret_node = create_node(NODE_RETURN);
         ret_node->as.return_stmt.is_explicit = false;
         ret_node->as.return_stmt.value = $1;
@@ -481,32 +481,10 @@ control_expr:
         $$->as.if_expr.then_body = $4;
         $$->as.if_expr.else_body = $7;
     }
-    | IF '(' expr ')' '{' block_body '}' %prec LOWER_THAN_ELSE %dprec 1 {
-        $$ = create_node(NODE_IF);
-        $$->as.if_expr.cond = $3;
-        $$->as.if_expr.then_body = $6;
-    }
-    | IF '(' expr ')' '{' block_body '}' ELSE '{' block_body '}' %dprec 1 {
-        $$ = create_node(NODE_IF);
-        $$->as.if_expr.cond = $3;
-        $$->as.if_expr.then_body = $6;
-        $$->as.if_expr.else_body = $10;
-    }
-    | IF '(' expr ')' '{' block_body '}' ELSE control_expr %dprec 1 {
-        $$ = create_node(NODE_IF);
-        $$->as.if_expr.cond = $3;
-        $$->as.if_expr.then_body = $6;
-        $$->as.if_expr.else_body = $9;
-    }
     | MATCH expr '{' match_arms '}' {
         $$ = create_node(NODE_MATCH);
         $$->as.match_expr.subject = $2;
         $$->as.match_expr.arms = $4;
-    }
-    | MATCH '(' expr ')' '{' match_arms '}' {
-        $$ = create_node(NODE_MATCH);
-        $$->as.match_expr.subject = $3;
-        $$->as.match_expr.arms = $6;
     }
     | FOR '(' for_init ';' expr_opt ';' expr_opt ')' '{' block_body '}' {
         $$ = create_node(NODE_FOR);
@@ -535,19 +513,6 @@ control_expr:
         $$->as.foreach_expr.iterator = $4;
         $$->as.foreach_expr.body = $6;
         $$->as.foreach_expr.else_body = $10;
-    }
-    | FOR IDENT IN '(' expr ')' '{' block_body '}' {
-        $$ = create_node(NODE_FOREACH);
-        $$->as.foreach_expr.binded_term = ast_strdup($2);
-        $$->as.foreach_expr.iterator = $5;
-        $$->as.foreach_expr.body = $8;
-    }
-    | FOR IDENT IN '(' expr ')' '{' block_body '}' ELSE '{' block_body '}' {
-        $$ = create_node(NODE_FOREACH);
-        $$->as.foreach_expr.binded_term = ast_strdup($2);
-        $$->as.foreach_expr.iterator = $5;
-        $$->as.foreach_expr.body = $8;
-        $$->as.foreach_expr.else_body = $12;
     }
     | LOOP '{' block_body '}' {
         $$ = create_node(NODE_LOOP);
@@ -670,7 +635,6 @@ match_arm:
 
 pattern:
     expr { $$ = $1; }
-    /* '[' expr_list ']' removed, already covered by expr list_literal */
     | '[' expr_list ',' DOTDOT IDENT ']' {
         $$ = create_node(NODE_LIST_PATTERN);
         ASTNode* n = $2;
