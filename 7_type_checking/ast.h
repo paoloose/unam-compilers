@@ -51,6 +51,8 @@ typedef enum {
     /*33*/ NODE_MEMBER_ACCESS, // '.'
     /*34*/ NODE_RANGE,
     /*35*/ NODE_LAMBDA,
+    /*36*/ NODE_SCOPE,
+    /*37*/ NODE_FOREACH,
 } NodeType;
 
 // note: I may use a union in the future to save some memory
@@ -82,6 +84,7 @@ typedef enum {
 typedef struct {
     int line;
     int col;
+    int lastcol;
 } SourceLoc;
 
 typedef struct ASTNode ASTNode;
@@ -111,6 +114,9 @@ struct ASTNode {
         /* NODE_STMT_LIST */
         struct { ASTNode* body; } stmt_list;
 
+        /* NODE_SCOPE */
+        struct { ASTNode* body; } scope;
+
         /* NODE_LET */
         struct { char* name; ASTNode* declared_type;  ASTNode* value; } let;
 
@@ -130,17 +136,20 @@ struct ASTNode {
 
         /* NODE_FOR */
         struct {
-            char* name;          /* loop variable */
-
-            int is_decl;         /* FOR (LET i = ...) */
-            int is_foreach;      /* FOR i IN expr */
-
-            ASTNode* init;       /* c-style init expr */
-            ASTNode* cond;       /* condition OR iterable for foreach */
-            ASTNode* step;       /* c-style increment */
+            ASTNode* init;       /* c-style init expr, optional */
+            ASTNode* cond;       /* condition, optional */
+            ASTNode* step;       /* c-style increment, optional */
             ASTNode* body;
             ASTNode* else_body;  /* optional */
         } for_expr;
+
+        /* NODE_FOREACH */
+        struct {
+            char* binded_term;   /* identifier for the loop variable */
+            ASTNode* iterator;   /* iterable expression */
+            ASTNode* body;
+            ASTNode* else_body;  /* optional */
+        } foreach_expr;
 
         /* NODE_LOOP */
         struct {
@@ -164,6 +173,7 @@ struct ASTNode {
         /* NODE_RETURN */
         struct {
             ASTNode* value;      /* optional */
+            bool is_explicit;
         } return_stmt;
 
         /* NODE_BREAK */
@@ -317,13 +327,15 @@ struct ASTNode {
 };
 
 extern int yylineno;
-extern int yylastcolumn;
+extern int yycolumn;
+extern int yyleng;
 
 static inline ASTNode* create_node(NodeType type) {
     ASTNode* node = (ASTNode*)calloc(1, sizeof(ASTNode));
     node->type = type;
     node->loc.line = yylineno;
-    node->loc.col = yylastcolumn;
+    node->loc.col = yycolumn;
+    node->loc.lastcol = yycolumn - yyleng;
     return node;
 }
 

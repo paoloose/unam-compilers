@@ -1,12 +1,15 @@
 #include "ast.h"
 
-static char repr_buf[512];
+#define NUM_REPR_BUFS 4
+static char repr_bufs[NUM_REPR_BUFS][512];
+static int current_buf_idx = 0;
 static int repr_len = 0;
 
 static void append_repr(const char* str) {
     if (!str) return;
     int len = strlen(str);
-    if (repr_len + len < (int)sizeof(repr_buf) - 1) {
+    char* repr_buf = repr_bufs[current_buf_idx];
+    if (repr_len + len < (int)sizeof(repr_bufs[0]) - 1) {
         strcpy(repr_buf + repr_len, str);
         repr_len += len;
     }
@@ -29,7 +32,9 @@ static void build_repr(ASTNode* node) {
             append_repr(node->as.assign.op);
             break;
         case NODE_FOR:
-            append_repr(node->as.for_expr.name);
+            break;
+        case NODE_FOREACH:
+            append_repr(node->as.foreach_expr.binded_term);
             break;
         case NODE_FUNC_PARAMETER:
             append_repr(node->as.func_param.name);
@@ -99,25 +104,29 @@ static void build_repr(ASTNode* node) {
         case NODE_MEMBER_ACCESS:
             append_repr(node->as.member.op);
             break;
+        case NODE_SCOPE:
+            append_repr("{ scope }");
+            break;
         default:
             break;
     }
 }
 
 char* node_repr(ASTNode* node) {
+    current_buf_idx = (current_buf_idx + 1) % NUM_REPR_BUFS;
     repr_len = 0;
-    repr_buf[0] = '\0';
+    repr_bufs[current_buf_idx][0] = '\0';
     build_repr(node);
-    return repr_buf;
+    return repr_bufs[current_buf_idx];
 }
 
 #define PRINT_INDEN(indent) for (int i = 0; i <= (indent); i++) printf("  ");
 
 void print_ast(ASTNode* node, int indent) {
     if (!node) return;
-    
+
     PRINT_INDEN(indent - 1);
-    
+
     const char* type_names[] = {
         "NODE_PROGRAM", "NODE_FUNCTION", "NODE_STMT_LIST", "NODE_LET", "NODE_ASSIGN",
         "NODE_IF", "NODE_FOR", "NODE_LOOP", "NODE_MATCH",
@@ -126,22 +135,22 @@ void print_ast(ASTNode* node, int indent) {
         "NODE_INT_LITERAL", "NODE_FLOAT_LITERAL", "NODE_BOOL_LITERAL", "NODE_STRING_LITERAL", "NODE_CALL",
         "NODE_ENUM_DECL", "NODE_ENUM_VARIANT", "NODE_STRUCT_DECL", "NODE_STRUCT_LITERAL", "NODE_STRUCT_FIELD",
         "NODE_LIST_LITERAL", "NODE_LIST_PATTERN", "NODE_PIPELINE", "NODE_PLACEHOLDER", "NODE_MEMBER_ACCESS",
-        "NODE_RANGE", "NODE_LAMBDA"
+        "NODE_RANGE", "NODE_LAMBDA", "NODE_SCOPE", "NODE_FOREACH"
     };
 
     printf("[%s]", type_names[node->type]);
-    
+
     // We print the repr, but first we must copy it or just print it directly.
     // It's safe to use directly since printf processes it before we call node_repr again.
     char* repr = node_repr(node);
     if (repr && repr[0] != '\0') {
         printf(" lexeme: %s", repr);
     }
-    
+
     if (node->evaluates_to_type) {
         printf(" type: %s", node_repr(node->evaluates_to_type));
     }
-    
+
     printf("\n");
 
     // Print children recursively depending on node type
@@ -150,13 +159,16 @@ void print_ast(ASTNode* node, int indent) {
             print_ast(node->as.program.body, indent + 1);
             break;
         case NODE_FUNCTION:
-            print_ast(node->as.function.generic_args, indent + 1);
             print_ast(node->as.function.params, indent + 1);
+            print_ast(node->as.function.generic_args, indent + 1);
             print_ast(node->as.function.return_type, indent + 1);
             print_ast(node->as.function.body, indent + 1);
             break;
         case NODE_STMT_LIST:
             print_ast(node->as.stmt_list.body, indent + 1);
+            break;
+        case NODE_SCOPE:
+            print_ast(node->as.scope.body, indent + 1);
             break;
         case NODE_LET:
             print_ast(node->as.let.declared_type, indent + 1);
@@ -177,6 +189,13 @@ void print_ast(ASTNode* node, int indent) {
             print_ast(node->as.for_expr.step, indent + 1);
             print_ast(node->as.for_expr.body, indent + 1);
             print_ast(node->as.for_expr.else_body, indent + 1);
+            break;
+        case NODE_FOREACH:
+            PRINT_INDEN(indent);
+            printf("IDENT(%s)\n", node->as.foreach_expr.binded_term);
+            print_ast(node->as.foreach_expr.iterator, indent + 1);
+            print_ast(node->as.foreach_expr.body, indent + 1);
+            print_ast(node->as.foreach_expr.else_body, indent + 1);
             break;
         case NODE_LOOP:
             print_ast(node->as.loop_expr.body, indent + 1);
@@ -258,6 +277,6 @@ void print_ast(ASTNode* node, int indent) {
         default:
             break;
     }
-    
+
     if (node->next) print_ast(node->next, indent);
 }
