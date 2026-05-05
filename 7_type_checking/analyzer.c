@@ -376,9 +376,9 @@ void analyze_pattern(ASTNode* pattern, ASTNode* subject_type, Scope* current_sco
     if (!pattern || !subject_type) return;
 
     if (pattern->type == NODE_IDENTIFIER) {
-        add_symbol_shadowed(current_scope, pattern->as.ident.name, subject_type);
-        pattern->evaluates_to_type = subject_type;
-    } else if (pattern->type == NODE_PLACEHOLDER) {
+        if (strcmp(pattern->as.ident.name, "_") != 0) {
+            add_symbol_shadowed(current_scope, pattern->as.ident.name, subject_type);
+        }
         pattern->evaluates_to_type = subject_type;
     } else if (pattern->type == NODE_INT_LITERAL || pattern->type == NODE_FLOAT_LITERAL ||
                pattern->type == NODE_BOOL_LITERAL || pattern->type == NODE_STRING_LITERAL) {

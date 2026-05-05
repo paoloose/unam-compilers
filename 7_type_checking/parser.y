@@ -305,7 +305,6 @@ expr_no_block:
     | BOOL_LIT { $$ = create_leaf_bool($1); }
     | STRING_LIT { $$ = create_leaf_str($1); }
     | IDENT { $$ = create_leaf_id($1); }
-    | '_' { $$ = create_node(NODE_PLACEHOLDER); }
     | IDENT '=' expr {
         $$ = create_node(NODE_ASSIGN);
         $$->as.assign.op = ast_strdup("=");

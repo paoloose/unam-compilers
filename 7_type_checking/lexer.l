@@ -89,7 +89,6 @@ int yylastcolumn = 1;
 "]"                { return ']'; }
 ":"                { return ':'; }
 "."                { return '.'; }
-"_"                { return '_'; }
 
 [a-zA-Z_][a-zA-Z0-9_]* {
     yylval.string_val = ast_strdup(yytext);
