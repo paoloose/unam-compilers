@@ -708,7 +708,7 @@ void yyerror(const char *s) {
     }
 }
 
-#define ALWAYS_PRINT_AST false
+#define ALWAYS_PRINT_AST true
 
 int main(int argc, char** argv) {
     if (argc > 1) {
@@ -722,8 +722,13 @@ int main(int argc, char** argv) {
     }
 
     if (yyparse() == 0) {
+        if (ALWAYS_PRINT_AST) {
+            printf("🪰 AST...\n");
+            print_ast(root, 0);
+        }
+
         bool success = analyze_semantics(root);
-        if (success || ALWAYS_PRINT_AST) {
+        if (success && !ALWAYS_PRINT_AST) {
             printf("\n🪰 AST...\n");
             print_ast(root, 0);
         }

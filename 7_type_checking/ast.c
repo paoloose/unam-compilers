@@ -138,7 +138,7 @@ void print_ast(ASTNode* node, int indent) {
         "NODE_RANGE", "NODE_SCOPE", "NODE_FOREACH"
     };
 
-    printf("[%s]", type_names[node->type]);
+    printf(UNAM_MAGENTA "[" UNAM_BLUE "%s" UNAM_MAGENTA "]" UNAM_RESET, type_names[node->type]);
 
     // We print the repr, but first we must copy it or just print it directly.
     // It's safe to use directly since printf processes it before we call node_repr again.
