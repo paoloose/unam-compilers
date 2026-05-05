@@ -383,15 +383,15 @@ print("X=" + x + " Y=" + y);
 // Example: Anonymous Functions (Lambdas)
 fn main() {
     // Basic lambda assignment
-    let duplicate = fn (a: Int) { a * 2 };
+    let duplicate = fn (a: int) { a * 2 };
     print("duplicate(10) = " + duplicate(10));
 
     // Lambda in pipeline
-    let thing = 10 |> fn (a: Int) { a * 2 };
+    let thing = 10 |> fn (a: int) { a * 2 };
 
     // Pipeline with map-like usage (syntax only)
     let nums = [1, 2, 3];
-    nums |> map(fn(x: Int) { x * 2 })
+    nums |> map(fn(x: int) { x * 2 })
 }
 ```
 
@@ -399,10 +399,10 @@ fn main() {
 
 ```ennuyeux
 // Example: Gleam-style Pipelines (|>)
-fn double(n: Int) { n * 2 }
-fn add(a: Int, b: Int) { a + b }
-fn square(n: Int) { n * n }
-fn to_string(n: Int) { "" + n }
+fn double(n: int) { n * 2 }
+fn add(a: int, b: int) { a + b }
+fn square(n: int) { n * n }
+fn to_string(n: int) { "" + n }
 
 fn main() {
     // Simple pipeline: value goes as first argument
