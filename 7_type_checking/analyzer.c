@@ -348,10 +348,6 @@ bool add_symbol_unshadowed(Scope* current_scope, const char* name, ASTNode* type
     return true;
 }
 
-/*
- * Succees if the symbol to add is not defined in the current scope only.
- * It may be defined in parent scopes, but shadowing will allow that!
- */
 bool add_symbol_shadowed(Scope* current_scope, const char* name, ASTNode* type_node) {
     if (!current_scope) return false;
 
@@ -363,6 +359,40 @@ bool add_symbol_shadowed(Scope* current_scope, const char* name, ASTNode* type_n
 
     add_symbol_unchecked(current_scope, name, type_node);
     return true;
+}
+
+ASTNode* find_nearest_match(const da_astnodes* contexts_stack) {
+    size_t i = contexts_stack->length;
+    while (i-->0) {
+        ASTNode* entry = contexts_stack->data[i];
+        if (entry->type == NODE_MATCH) {
+            return entry;
+        }
+    }
+    return NULL;
+}
+
+void analyze_pattern(ASTNode* pattern, ASTNode* subject_type, Scope* current_scope) {
+    if (!pattern || !subject_type) return;
+
+    if (pattern->type == NODE_IDENTIFIER) {
+        add_symbol_shadowed(current_scope, pattern->as.ident.name, subject_type);
+        pattern->evaluates_to_type = subject_type;
+    } else if (pattern->type == NODE_PLACEHOLDER) {
+        pattern->evaluates_to_type = subject_type;
+    } else if (pattern->type == NODE_INT_LITERAL || pattern->type == NODE_FLOAT_LITERAL ||
+               pattern->type == NODE_BOOL_LITERAL || pattern->type == NODE_STRING_LITERAL) {
+        ASTNode* lit_type = NULL;
+        if (pattern->type == NODE_INT_LITERAL) lit_type = find_symbol(current_scope, "int")->node;
+        else if (pattern->type == NODE_FLOAT_LITERAL) lit_type = find_symbol(current_scope, "float")->node;
+        else if (pattern->type == NODE_BOOL_LITERAL) lit_type = find_symbol(current_scope, "bool")->node;
+        else if (pattern->type == NODE_STRING_LITERAL) lit_type = find_symbol(current_scope, "string")->node;
+
+        if (lit_type && !types_are_equal(lit_type, subject_type)) {
+            report_error(pattern, "Pattern type %s does not match subject type %s", node_repr(lit_type), node_repr(subject_type));
+        }
+        pattern->evaluates_to_type = lit_type;
+    }
 }
 
 int calls = 0;
@@ -970,13 +1000,58 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
                 break;
             };
             case NODE_MATCH: {
-                UNAM_DEBUG("NODE_MATCH not implemented");
-                exit(69);
+                if (phase == PHASE_ENTER) {
+                    da_astnodes_append(&contexts_stack, node);
+                    da_analyze_frames_append(&stack, (AnalyzeFrame){ node, PHASE_EXIT });
+                    da_analyze_frames_append(&stack, (AnalyzeFrame){ node, PHASE_MID });
+                    da_analyze_frames_append(&stack, (AnalyzeFrame){ node->as.match_expr.subject, PHASE_ENTER });
+                } else if (phase == PHASE_MID) {
+                    ASTNode* arm = node->as.match_expr.arms;
+                    // Push arms in reverse order to analyze them in original order
+                    da_astnodes arm_list;
+                    da_astnodes_init(&arm_list, 0);
+                    while (arm) {
+                        da_astnodes_append(&arm_list, arm);
+                        arm = arm->next;
+                    }
+                    for (int i = arm_list.length - 1; i >= 0; i--) {
+                        da_analyze_frames_append(&stack, (AnalyzeFrame){ arm_list.data[i], PHASE_ENTER });
+                    }
+                    da_free(&arm_list);
+                } else if (phase == PHASE_EXIT) {
+                    da_astnodes_pop(&contexts_stack, NULL);
+                    ASTNode* arm = node->as.match_expr.arms;
+                    ASTNode* first_arm_type = NULL;
+                    while (arm) {
+                        if (arm->evaluates_to_type) {
+                            if (!first_arm_type) first_arm_type = arm->evaluates_to_type;
+                            else if (!types_are_equal(first_arm_type, arm->evaluates_to_type)) {
+                                report_error(arm, "Match arm evaluates to %s, but previous arms evaluate to %s", node_repr(arm->evaluates_to_type), node_repr(first_arm_type));
+                            }
+                        }
+                        arm = arm->next;
+                    }
+                    node->evaluates_to_type = first_arm_type;
+                }
                 break;
             };
             case NODE_MATCH_ARM: {
-                UNAM_DEBUG("NODE_MATCH_ARM not implemented");
-                exit(69);
+                if (phase == PHASE_ENTER) {
+                    ASTNode* match_expr = find_nearest_match(&contexts_stack);
+                    UNAM_ASSERT(match_expr, "Match arm must be within a match expression");
+                    ASTNode* subject_type = match_expr->as.match_expr.subject->evaluates_to_type;
+
+                    push_scope(&current_scope);
+                    da_analyze_frames_append(&stack, (AnalyzeFrame){ node, PHASE_EXIT });
+                    da_analyze_frames_append(&stack, (AnalyzeFrame){ node->as.match_arm.body, PHASE_ENTER });
+                    if (node->as.match_arm.guard) {
+                        da_analyze_frames_append(&stack, (AnalyzeFrame){ node->as.match_arm.guard, PHASE_ENTER });
+                    }
+                    analyze_pattern(node->as.match_arm.pattern, subject_type, current_scope);
+                } else if (phase == PHASE_EXIT) {
+                    node->evaluates_to_type = node->as.match_arm.body->evaluates_to_type;
+                    pop_scope(&current_scope);
+                }
                 break;
             };
             case NODE_RETURN: {

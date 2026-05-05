@@ -1,3 +1,5 @@
+fn print<T>(what: T) { }
+
 // Example: Pattern Matching with Guards
 fn classify_value(x: int) {
     match (x) {
