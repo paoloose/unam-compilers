@@ -46,6 +46,17 @@ typedef struct StructField {
 //     StructField* fields;   // struct members
 // } SymbolTypeData;
 
+typedef enum {
+    PHASE_ENTER,
+    PHASE_MID,
+    PHASE_EXIT
+} VisitPhase;
+
+typedef struct {
+    ASTNode* node;
+    VisitPhase phase;
+} AnalyzeFrame;
+
 // Symbol table entry
 typedef struct SymbolTableEntry {
     const char* name;
