@@ -6,10 +6,6 @@ fn absolute(x: int) {
     x
 }
 
-fn twice<T>(x: Fn<T, T>) {
-    x(x(x))
-}
-
 fn max(a: int, b: int) {
     if (a > b) { a } else { b }
 }
