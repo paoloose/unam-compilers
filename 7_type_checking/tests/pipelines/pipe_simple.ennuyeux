@@ -1,0 +1,11 @@
+fn print<T>(what: T) { }
+
+fn double(n: int) { n * 2 }
+fn add(a: int, b: int) { a + b }
+
+fn main() {
+    let r1 = 5 |> double |> double;
+    let r2 = 10 |> add(_, 5) |> double;
+    print(r1);
+    print(r2);
+}

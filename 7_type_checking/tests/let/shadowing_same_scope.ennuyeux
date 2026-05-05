@@ -1,0 +1,7 @@
+fn print<T>(what: T) { }
+
+fn main() {
+    let x = 10;
+    let x = 20; // Allowed according to DESIGN.md section 1
+    print(x);
+}

@@ -1,0 +1,8 @@
+fn print<T>(what: T) { }
+
+fn main() {
+    let x = 42;
+    let y: int = 10;
+    x = 100;
+    print(x + y);
+}

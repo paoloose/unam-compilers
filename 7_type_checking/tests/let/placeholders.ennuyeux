@@ -1,0 +1,5 @@
+fn print<T>(what: T) { }
+
+fn main() {
+    let _ = 42; // Placeholder should be allowed in let
+}

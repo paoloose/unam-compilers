@@ -1,0 +1,12 @@
+fn print<T>(what: T) { }
+
+enum Status {
+    Active;
+    Inactive;
+    Pending(string);
+}
+
+fn main() {
+    let s1 = Status::Active;
+    let s2 = Status::Pending("waiting");
+}

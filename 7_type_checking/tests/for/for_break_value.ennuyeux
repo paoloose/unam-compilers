@@ -1,0 +1,12 @@
+fn print<T>(what: T) { }
+
+fn main() {
+    let sum = for (let i = 1; i <= 10; i = i + 1) {
+        if (i == 5) {
+            break i;
+        }
+    } else {
+        break 0;
+    };
+    print(sum);
+}

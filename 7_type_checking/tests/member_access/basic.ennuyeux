@@ -1,0 +1,12 @@
+fn print<T>(what: T) { }
+
+struct Point {
+    x: int;
+    y: int;
+}
+
+fn main() {
+    let p = Point { x: 10, y: 20 };
+    print(p.x);
+    print(p.y);
+}

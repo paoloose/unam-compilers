@@ -1,0 +1,10 @@
+fn print<T>(what: T) { }
+
+fn double(n: int) -> int {
+    n * 2
+}
+
+fn main() {
+    let r = 5 |> double |> double;
+    print(r);
+}

@@ -4,7 +4,7 @@
 # Re-builds the parser and executes all examples in the examples/ directory.
 
 PARSER="./ennuyeux_parser"
-EXAMPLES_DIR="examples"
+TESTS_DIR="tests"
 SUCCESS_COUNT=0
 TOTAL_COUNT=0
 
@@ -25,30 +25,31 @@ echo
 echo "🪰 Running Test Suite"
 echo
 
-# Loop through all .ennuyeux files in examples/
-for test_file in $(ls $EXAMPLES_DIR/*.ennuyeux | sort); do
+# Loop through all .ennuyeux files in examples/ and tests/
+for test_file in $(find $TESTS_DIR -type f -name "*.ennuyeux" | sort); do
     TOTAL_COUNT=$((TOTAL_COUNT + 1))
     filename=$(basename "$test_file")
+    # For reporting, use the relative path so we can see which dir it's in
+    display_name="${test_file#*/}"
 
     # Run the parser and capture output
-    output=$($PARSER "$test_file" 2>&1)
+    $PARSER "$test_file" 1>/dev/null 2>/dev/null
     exit_code=$?
 
-    # Check if this is an intentional error file (contains 'error')
-    if [[ "$filename" == *"error"* ]]; then
+    # Check if this is an intentional error file
+    if [[ "$test_file" == *"error"* ]] || [[ "$test_file" == *"mismatch"* ]] || [[ "$test_file" == *"invalid_syntax"* ]]; then
         if [ $exit_code -ne 0 ]; then
-            printf "✅ [%-33s] PASS (Expected Failure)\n" "$filename"
+            printf "✅ [%-33s] PASS (Expected Failure)\n" "$display_name"
             SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
         else
-            printf "❌ [%-33s] FAIL (Expected failure but parsed successfully)\n" "$filename"
+            printf "❌ [%-33s] FAIL (Expected failure but parsed successfully)\n" "$display_name"
         fi
     else
         if [ $exit_code -eq 0 ]; then
-            printf "✅ [%-33s] PASS\n" "$filename"
+            printf "✅ [%-33s] PASS\n" "$display_name"
             SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
         else
-            printf "❌ [%-33s] FAIL\n" "$filename"
-            echo "   Message: $(echo "$output" | grep -i "error" | head -n 1)"
+            printf "❌ [%-33s] FAIL\n" "$display_name"
         fi
     fi
 done

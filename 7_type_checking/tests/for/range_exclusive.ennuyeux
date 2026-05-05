@@ -1,0 +1,7 @@
+fn print<T>(what: T) { }
+
+fn main() {
+    for i in 0..5 {
+        print(i);
+    }
+}

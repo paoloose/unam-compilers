@@ -1,0 +1,10 @@
+fn print<T>(what: T) { }
+
+fn main() {
+    let t = true;
+    let f = false;
+    print(t && f);
+    print(t || f);
+    print(!t);
+    print(!f);
+}

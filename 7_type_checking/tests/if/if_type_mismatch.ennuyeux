@@ -1,0 +1,5 @@
+fn print<T>(what: T) { }
+
+fn main() {
+    let x = if (true) { 1 } else { "string" }; // Error: branch type mismatch
+}

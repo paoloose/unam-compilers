@@ -1,0 +1,21 @@
+fn print<T>(what: T) { }
+
+enum Option<T> {
+    Some(T);
+    None;
+}
+
+enum Result<T, E> {
+    Ok(T);
+    Err(E);
+}
+
+fn main() {
+    let o = Option::Some(42);
+    let r = Result::Ok("success");
+
+    match o {
+        Option::Some(val) -> print(val);
+        Option::None -> print("nothing");
+    }
+}

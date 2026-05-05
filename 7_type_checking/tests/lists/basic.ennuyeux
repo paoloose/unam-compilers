@@ -1,0 +1,14 @@
+fn print<T>(what: T) { }
+
+fn head(list: List<T>) {
+    match list {
+        [first, ..rest] -> first;
+        _ -> 0; // Simplified for now
+    }
+}
+
+fn main() {
+    let nums = [1, 2, 3];
+    print(nums[0]);
+    print(head(nums));
+}

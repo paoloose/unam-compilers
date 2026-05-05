@@ -1,0 +1,6 @@
+fn print<T>(what: T) { }
+
+fn main() {
+    let f = fn (x: int) { x * 2 };
+    print(f(10));
+}

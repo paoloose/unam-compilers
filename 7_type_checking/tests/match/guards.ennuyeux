@@ -1,0 +1,10 @@
+fn print<T>(what: T) { }
+
+fn main() {
+    let x = 10;
+    match x {
+        n if n > 0 -> print("Positive");
+        n if n < 0 -> print("Negative");
+        _ -> print("Zero");
+    }
+}
