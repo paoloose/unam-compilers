@@ -1,3 +1,7 @@
+fn print<T>(what: T) {
+    // compiler implemented
+}
+
 // Example: Loops (for, while, loop + break)
 fn main() {
     // C-style for
@@ -16,13 +20,15 @@ fn main() {
     // Loop with break value
     let sum = loop {
         let total = 0;
-        for (let i = 1; i <= 100; i = i + 1) {
+
+        let _sum = for (let i = 1; i <= 100; i = i + 1) {
             total = total + i;
             if (i >= 10) {
                 break total;
             }
-        }
+        };
+        break _sum;
     };
-    
+
     print("Sum of 1..10 = " + sum);
 }
