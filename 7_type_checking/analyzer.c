@@ -188,13 +188,20 @@ void push_scope(Scope** current_scope) {
 }
 
 static void pop_scope(Scope** current_scope) {
-    if (!current_scope) {
+    if (!current_scope || !*current_scope) {
         UNAM_ASSERT(false, "trying to pop null scope");
         return;
     }
-    Scope* parent = (*current_scope)->parent;
-    // Note: In a real compiler, we'd free the symbols here but we'll keep them for now
-    *current_scope = parent;
+    Scope* scope = *current_scope;
+    SymbolTableEntry* sym = scope->symbols;
+    while (sym) {
+        SymbolTableEntry* next = sym->next;
+        if (sym->name) free((char*)sym->name);
+        free(sym);
+        sym = next;
+    }
+    *current_scope = scope->parent;
+    free(scope);
 }
 
 bool types_match(ASTNode* expected, ASTNode* actual, ASTNode* decl_gen, ASTNode* lit_gen) {
@@ -852,7 +859,7 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
 
                         if (passed_arg->evaluates_to_type == NULL) {
                             report_error(passed_arg, "Passed argument #%d to function '%s' evalutes to void", passed_args_len, node_repr(node));
-                            goto outer_loop;
+                            break;
                         }
 
                         if (passed_arg->evaluates_to_type->type != NODE_PLAIN_TYPE &&
@@ -860,7 +867,7 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
                             passed_arg->evaluates_to_type->type != NODE_ENUM_DECL &&
                             passed_arg->evaluates_to_type->type != NODE_SIGNATURE_TYPE) {
                             report_error(passed_arg, "Passed argument #%d to function '%s' evaluates to %s, which is not a type", passed_args_len, node_repr(node), node_repr(passed_arg->evaluates_to_type));
-                            goto outer_loop;
+                            break;
                         }
 
                         infer_specializations(param_type, passed_arg->evaluates_to_type, &specialized_params_types, &specialized_params_values);
@@ -2073,6 +2080,8 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
         }
     }
 
+    da_free(&stack);
+    da_free(&contexts_stack);
 }
 
 bool analyze_semantics(ASTNode* root) {
@@ -2115,6 +2124,6 @@ bool analyze_semantics(ASTNode* root) {
         free(diagnostics.data[i].message);
     }
     da_free(&diagnostics);
-
+    cleanup_builtins();
     return error_count == 0;
 }

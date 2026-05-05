@@ -93,3 +93,4 @@ SymbolTableEntry* get_bool_symbol();
 SymbolTableEntry* get_string_symbol();
 SymbolTableEntry* get_list_symbol();
 SymbolTableEntry* get_print_symbol();
+void cleanup_builtins();
