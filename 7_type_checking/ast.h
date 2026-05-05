@@ -210,12 +210,8 @@ struct ASTNode {
         /* NODE_GENERIC_TYPE */
         struct {
             const char* name;
-            ASTNode* generic_args;   /* optional */
+            ASTNode* generic_args;
         } type;
-
-        // struct {
-        //     char* name;
-        // } generic_type;
 
         /* NODE_INT_LITERAL */
         struct {
@@ -311,8 +307,6 @@ struct ASTNode {
             ASTNode* start;
             ASTNode* end;
         } range;
-
-
     } as;
 };
 
