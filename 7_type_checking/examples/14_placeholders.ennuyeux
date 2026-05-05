@@ -1,11 +1,13 @@
+fn print<T>(what: T) { }
+
 // Example: Gleam-style Placeholders (_) for Partial Application
-fn add(a: int, b: int) { a + b };
-fn multiply(a: int, b: int) { a * b };
+fn add(a: int, b: int) { a + b }
+fn multiply(a: int, b: int) { a * b }
 fn clamp(lo: int, val: int, hi: int) {
     if (val < lo) { lo }
     else if (val > hi) { hi }
     else { val }
-};
+}
 
 fn main() {
     // Single placeholder -> creates a function of one argument
@@ -16,7 +18,7 @@ fn main() {
     print("triple(7) = " + triple(7));
 
     // Multiple placeholders -> creates a function of N arguments
-    let adder = add(_, _);
+    let adder: (int, int)->int = add(_, _);
     print("adder(3, 4) = " + adder(3, 4));
 
     // Placeholder in complex expressions

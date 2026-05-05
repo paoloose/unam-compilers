@@ -1,3 +1,9 @@
+fn map<T, R>(arr: List<T>, func: (T)->R) -> List<R> {
+    []
+}
+
+fn print<T>(what: T) { }
+
 // Example: Anonymous Functions (Lambdas)
 fn main() {
     // Basic lambda assignment

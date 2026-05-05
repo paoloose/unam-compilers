@@ -1,3 +1,5 @@
+fn print<T>(what: T) { }
+
 // Example: Gleam-style Pipelines (|>)
 fn double(n: int) { n * 2 }
 fn add(a: int, b: int) { a + b }
