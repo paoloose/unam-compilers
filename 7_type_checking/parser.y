@@ -708,6 +708,8 @@ void yyerror(const char *s) {
     }
 }
 
+#define ALWAYS_PRINT_AST false
+
 int main(int argc, char** argv) {
     if (argc > 1) {
         FILE* f = fopen(argv[1], "r");
@@ -720,8 +722,12 @@ int main(int argc, char** argv) {
     }
 
     if (yyparse() == 0) {
-        print_ast(root, 0);
-        if (!analyze_semantics(root)) {
+        bool success = analyze_semantics(root);
+        if (success || ALWAYS_PRINT_AST) {
+            printf("\n🪰 AST...\n");
+            print_ast(root, 0);
+        }
+        if (!success) {
             return 1;
         }
     }
