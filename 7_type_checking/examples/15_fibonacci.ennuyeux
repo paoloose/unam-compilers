@@ -10,7 +10,6 @@ enum Option<T> {
     None;
 }
 
-// Example: Recursive Fibonacci with Result
 fn fibonacci(n: int) -> Result<int, string> {
     if (n < 0) {
         return Result::Err("Negative number not allowed");
@@ -32,7 +31,7 @@ fn fibonacci(n: int) -> Result<int, string> {
 }
 
 fn main() {
-    for (let i = 0; i < 10; i = i + 1) {
+    for i in 0..10 {
         match (fibonacci(i)) {
             Result::Ok(result) -> print("fib(" + i + ") = " + result);
             Result::Err(msg) -> print("Error: " + msg);
