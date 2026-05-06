@@ -198,7 +198,7 @@ static void pop_scope(Scope** current_scope) {
     while (symbol) {
         // But before blowing this entire scope, let's see what symbols were never referenced
         if (symbol->referenced_count == 0) {
-            report_warning(symbol->node, "Symbol '%s' is defined, but never used type=%d", node_repr(symbol->node), symbol->node->type);
+            report_warning(symbol->node, "Symbol '%s' is defined, but never used", node_repr(symbol->node));
         }
         SymbolTableEntry* next = symbol->next;
         if (symbol->name) free((char*)symbol->name);
@@ -870,14 +870,6 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
 
                         if (passed_arg->evaluates_to_type == NULL) {
                             report_error(passed_arg, "Passed argument #%d to function '%s' evalutes to void", passed_args_len, node_repr(node));
-                            break;
-                        }
-
-                        if (passed_arg->evaluates_to_type->type != NODE_PLAIN_TYPE &&
-                            passed_arg->evaluates_to_type->type != NODE_STRUCT_DECL &&
-                            passed_arg->evaluates_to_type->type != NODE_ENUM_DECL &&
-                            passed_arg->evaluates_to_type->type != NODE_SIGNATURE_TYPE) {
-                            report_error(passed_arg, "Passed argument #%d to function '%s' evaluates to %s, which is not a type", passed_args_len, node_repr(node), node_repr(passed_arg->evaluates_to_type));
                             break;
                         }
 
@@ -1613,6 +1605,32 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
 
                     if (!add_symbol_unshadowed(current_scope, enum_name, node)) {
                         report_error(node, "The type name for enum '%s' already exists", enum_name);
+                        break;
+                    }
+
+                    ASTNode* start_variant = node->as.enum_decl.variants;
+                    ASTNode* variant = node->as.enum_decl.variants;
+                    int i = 0;
+                    bool duplicated_variant = false;
+
+                    while (variant && !duplicated_variant) {
+                        int j = 0;
+                        ASTNode* v = start_variant;
+                        while (v) {
+                            if (strcmp(v->as.enum_variant.name, variant->as.enum_variant.name) == 0 && i != j) {
+                                report_error(variant, "Duplicated variant '%s' for enum", variant->as.enum_variant.name);
+                                duplicated_variant = true;
+                                break;
+                            }
+                            j++;
+                            v = v->next;
+                        }
+
+                        i++;
+                        variant = variant->next;
+                    }
+                    if (duplicated_variant) {
+                        break;
                     }
 
                     push_scope(&current_scope);
@@ -1648,11 +1666,6 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
                 const char* variant_name = node->as.enum_variant.name;
                 UNAM_DEBUG("  variant: %s\n", variant_name);
 
-                // We add the variant to the current scope (which should be the enum's scope)
-                if (!add_symbol_unshadowed(current_scope, variant_name, node)) {
-                    report_error(node, "Variant '%s' is already defined in this enum", variant_name);
-                }
-
                 // A variant always evaluates to its parent enum type
                 size_t i = contexts_stack.length;
                 ASTNode* enum_node = NULL;
@@ -1680,6 +1693,31 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
 
                     if (!add_symbol_unshadowed(current_scope, struct_name, node)) {
                         report_error(node, "The type name for struct '%s' already exists", struct_name);
+                        break;
+                    }
+
+                    ASTNode* start_struct_field = node->as.struct_decl.fields;
+                    ASTNode* struct_field = node->as.struct_decl.fields;
+                    int i = 0;
+                    bool duplicated_field = false;
+
+                    while (struct_field && !duplicated_field) {
+                        int j = 0;
+                        ASTNode* sf = start_struct_field;
+                        while (sf) {
+                            if (strcmp(sf->as.struct_field.name, struct_field->as.struct_field.name) == 0 && i != j) {
+                                report_error(struct_field, "Duplicated field name '%s' for struct", struct_field->as.struct_field.name);
+                                duplicated_field = true;
+                                break;
+                            }
+                            j++;
+                            sf = sf->next;
+                        }
+                        i++;
+                        struct_field = struct_field->next;
+                    }
+                    if (duplicated_field) {
+                        break;
                     }
 
                     push_scope(&current_scope);
@@ -1708,22 +1746,10 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
                 } else if (phase == PHASE_EXIT) {
                     da_astnodes_pop(&contexts_stack, NULL);
                     // Validate: no duplicate field names
-                    ASTNode* start_struct_field = node->as.struct_decl.fields;
                     ASTNode* struct_field = node->as.struct_decl.fields;
                     int i = 0;
 
                     while (struct_field) {
-                        int j = 0;
-                        ASTNode* sf = start_struct_field;
-                        while (sf) {
-                            if (strcmp(sf->as.struct_field.name, struct_field->as.struct_field.name) == 0 && i != j) {
-                                report_error(struct_field, "Duplicated field name '%s' for struct", struct_field->as.struct_field.name);
-                                break;
-                            }
-                            j++;
-                            sf = sf->next;
-                        }
-
                         // Verify that the field's type exists
                         ASTNode* field_type = struct_field->as.struct_field.value;
                         if (field_type && field_type->as.type.name) {

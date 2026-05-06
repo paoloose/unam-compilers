@@ -1,3 +1,49 @@
-fn main(foo: int, bar: Baz) {
-    let a = double(10);
+fn print<T>(what: T) { }
+
+enum Option<T> {
+    Some(T);
+    None;
+}
+
+fn head<T>(list: List<T>) -> Option<T> {
+    match (list) {
+        [first, ..rest] -> Option::Some(first);
+        _ -> Option::None;
+    }
+}
+
+fn sum_list(list: List<int>) -> int {
+    match (list) {
+        [x, ..rest] -> x + sum_list(rest);
+        _ -> 0;
+    }
+}
+
+fn main() {
+    let numbers = [1, 2, 3, 4, 5];
+
+    // List indexing
+    print("First element: " + numbers[0]);
+
+    // Pattern matching on lists
+    match (numbers) {
+        [1, ..rest] -> print("Starts with 1");
+        [4, ..rest] -> print("Starts with 4");
+        _ -> print("Other");
+    };
+
+    // head function
+    match (head(numbers)) {
+        Option::Some(x) -> print("Head: " + x);
+        Option::None -> print("Empty list");
+    };
+
+    // Empty list
+    let empty = [];
+    match (head(empty)) {
+        Option::Some(x) -> print("Head: " + x);
+        Option::None -> print("Empty list");
+    };
+
+    print("Sum: " + sum_list(numbers));
 }
