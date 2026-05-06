@@ -375,16 +375,6 @@ void add_symbol_unchecked(Scope* current_scope, const char* name, ASTNode* type_
 
     switch (type_node->type) {
         case NODE_STRUCT_DECL: {
-            // sym->kind = SYMBOL_KIND_TYPENAME;
-            // sym->next = current_scope->symbols;
-            // sym->type_data.name = sym->name;
-            // sym->type_data.type = TYPE_STRUCT;
-            // ASTNode* garg = type_node->generic_args;
-            // while (garg) {
-            //     SymbolTableEntry* sym = calloc(1, sizeof(SymbolTableEntry));
-            //     garg = garg->next;
-            // }
-            // current_scope->symbols = sym;
             break;
         };
         case NODE_ENUM_DECL: {
