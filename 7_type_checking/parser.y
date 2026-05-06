@@ -515,13 +515,13 @@ control_expr:
     }
     | FOR IDENT IN expr '{' block_body '}' {
         $$ = create_node(NODE_FOREACH);
-        $$->as.foreach_expr.binded_term = ast_strdup($2);
+        $$->as.foreach_expr.binded_term = create_leaf_id($2);
         $$->as.foreach_expr.iterator = $4;
         $$->as.foreach_expr.body = $6;
     }
     | FOR IDENT IN expr '{' block_body '}' ELSE '{' block_body '}' {
         $$ = create_node(NODE_FOREACH);
-        $$->as.foreach_expr.binded_term = ast_strdup($2);
+        $$->as.foreach_expr.binded_term = create_leaf_id($2);
         $$->as.foreach_expr.iterator = $4;
         $$->as.foreach_expr.body = $6;
         $$->as.foreach_expr.else_body = $10;

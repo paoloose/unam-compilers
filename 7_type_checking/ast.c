@@ -34,7 +34,7 @@ static void build_repr(ASTNode* node) {
         case NODE_FOR:
             break;
         case NODE_FOREACH:
-            append_repr(node->as.foreach_expr.binded_term);
+            append_repr(node->as.foreach_expr.binded_term->as.ident.name);
             break;
         case NODE_FUNC_PARAMETER:
             append_repr(node->as.func_param.name);
@@ -250,7 +250,7 @@ void print_ast(ASTNode* node, int indent) {
             break;
         case NODE_FOREACH:
             PRINT_INDEN(indent);
-            printf("IDENT(%s)\n", node->as.foreach_expr.binded_term);
+            printf("IDENT(%s)\n", node->as.foreach_expr.binded_term->as.ident.name);
             print_ast(node->as.foreach_expr.iterator, indent + 1);
             print_ast(node->as.foreach_expr.body, indent + 1);
             print_ast(node->as.foreach_expr.else_body, indent + 1);

@@ -198,7 +198,7 @@ static void pop_scope(Scope** current_scope) {
     while (symbol) {
         // But before blowing this entire scope, let's see what symbols were never referenced
         if (symbol->referenced_count == 0) {
-            report_warning(symbol->node, "Symbol '%s' is defined, but never used", node_repr(symbol->node));
+            report_warning(symbol->node, "Symbol '%s' is defined, but never used type=%d", node_repr(symbol->node), symbol->node->type);
         }
         SymbolTableEntry* next = symbol->next;
         if (symbol->name) free((char*)symbol->name);
@@ -447,6 +447,15 @@ ASTNode* find_nearest_match(const da_astnodes* contexts_stack) {
     return NULL;
 }
 
+bool node_is_list(ASTNode* n) {
+    if (n->type == NODE_PLAIN_TYPE) return true;
+    if (n->type == NODE_STRUCT_DECL && strcmp(n->as.struct_decl.name, "List") == 0) return true;
+    if (n->evaluates_to_type && n != n->evaluates_to_type) {
+        return node_is_list(n->evaluates_to_type);
+    }
+    return false;
+}
+
 void analyze_pattern(ASTNode* pattern, ASTNode* subject_type, Scope* current_scope) {
     if (!pattern || !subject_type) return;
 
@@ -469,7 +478,7 @@ void analyze_pattern(ASTNode* pattern, ASTNode* subject_type, Scope* current_sco
         pattern->evaluates_to_type = lit_type;
     } else if (pattern->type == NODE_LIST_PATTERN) {
         // Check if subject_type is List<T>
-        if (subject_type->type != NODE_PLAIN_TYPE || strcmp(subject_type->as.type.name, "List") != 0) {
+        if (!node_is_list(subject_type)) {
             report_error(pattern, "Cannot match list pattern against non-list type %s", node_repr(subject_type));
             return;
         }
@@ -585,14 +594,17 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
         switch (node->type) {
             case NODE_PROGRAM: {
                 if (phase == PHASE_ENTER) {
-                    push_scope(&current_scope);
+                    da_analyze_frames_append(&stack, (AnalyzeFrame){ node, PHASE_EXIT });
                     da_analyze_frames_append(&stack, (AnalyzeFrame){ node->as.program.body, PHASE_ENTER });
+                    push_scope(&current_scope);
                 } else if (phase == PHASE_EXIT) {
                     pop_scope(&current_scope);
                 }
                 break;
             };
             case NODE_SCOPE: {
+                if (!node->as.scope.body) break;
+
                 if (phase == PHASE_ENTER) {
                     push_scope(&current_scope);
                     da_astnodes_append(&contexts_stack, node);
@@ -1088,7 +1100,7 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
             };
             case NODE_FOREACH: {
                 if (phase == PHASE_ENTER) {
-                    UNAM_DEBUG("foreach %s\n", node->as.foreach_expr.binded_term);
+                    UNAM_DEBUG("foreach %s\n", node->as.foreach_expr.binded_term->as.ident.name);
                     da_astnodes_append(&contexts_stack, node);
 
                     // Push a scope for the loop variable
@@ -1101,33 +1113,34 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
                 } else if (phase == PHASE_MID) {
                     // Iterator has been analyzed, now bind the loop variable before analyzing the body
                     ASTNode* foreach_iterator = node->as.foreach_expr.iterator;
-                    const char* binded_term = node->as.foreach_expr.binded_term;
+                    ASTNode* binded_term = node->as.foreach_expr.binded_term;
+                    char* binded_term_name = binded_term->as.ident.name;
+
+                    if (find_symbol(current_scope, binded_term_name)) {
+                        report_error(binded_term, "canont bind %s in foreach, it is already defined");
+                        break;
+                    }
 
                     if (foreach_iterator && foreach_iterator->evaluates_to_type) {
                         ASTNode* iter_type = foreach_iterator->evaluates_to_type;
 
                         // If iterating over a List<T>, the loop variable is of type T
-                        if (iter_type->as.type.name && strcmp(iter_type->as.type.name, "List") == 0) {
+                        if (node_is_list(iter_type)) {
                             ASTNode* element_type = iter_type->as.type.generic_args;
-                            if (element_type) {
-                                add_symbol_shadowed(current_scope, binded_term, element_type);
-                            } else {
-                                report_error(node, "Cannot infer element type of list for foreach variable '%s'", binded_term);
-                                add_symbol_shadowed(current_scope, binded_term, NULL);
-                            }
+                            UNAM_ASSERT(element_type, "list must have at least one generig_args");
+                            binded_term->evaluates_to_type = element_type;
                         }
-                        // If iterating over a Range, the loop variable is int
-                        else if (iter_type->as.type.name && strcmp(iter_type->as.type.name, "int") == 0) {
-                            add_symbol_shadowed(current_scope, binded_term, iter_type);
+                        else if (iter_type->type == NODE_RANGE) {
+                            binded_term->evaluates_to_type = get_int_symbol()->node;
                         }
                         else {
-                            // For other iterables, use the iterator's type directly
-                            add_symbol_shadowed(current_scope, binded_term, iter_type);
+                            report_error(foreach_iterator, "foreach can only iterate lists or ranges, got %s", node_repr(iter_type));
                         }
                     } else {
-                        report_error(foreach_iterator ? foreach_iterator : node, "foreach iterator does not evaluate to a type");
-                        add_symbol_shadowed(current_scope, binded_term, NULL);
+                        report_error(foreach_iterator ? foreach_iterator : node, "trying to iterate void in foreach");
                     }
+
+                    add_symbol_shadowed(current_scope, binded_term_name, binded_term);
 
                     // Now schedule body and else_body for analysis
                     da_analyze_frames_append(&stack, (AnalyzeFrame){ node, PHASE_EXIT });
@@ -1846,7 +1859,7 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
                     UNAM_ASSERT(list_symbol != NULL, "List type is not defined");
 
                     // Create a NEW type node to avoid mutating the shared builtin
-                    ASTNode* list_type = create_node(NODE_PLAIN_TYPE);
+                    ASTNode* list_type = create_node(NODE_STRUCT_DECL);
                     list_type->as.type.name = ast_strdup("List");
                     if (last_element_type) {
                         list_type->as.type.generic_args = last_element_type;
@@ -2050,6 +2063,7 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
             };
             case NODE_RANGE: {
                 if (phase == PHASE_ENTER) {
+                    UNAM_DEBUG("range: \n");
                     da_analyze_frames_append(&stack, (AnalyzeFrame){ node, PHASE_EXIT });
                     UNAM_ASSERT(node->as.range.end && node->as.range.start, "both sides of the range must be defined");
                     da_analyze_frames_append(&stack, (AnalyzeFrame){ node->as.range.end, PHASE_ENTER });
@@ -2072,9 +2086,7 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
                             node_repr(start_type), node_repr(end_type)
                         );
                     }
-
-                    // A range evaluates to int (the element type)
-                    node->evaluates_to_type = find_symbol(current_scope, "int")->node;
+                    node->evaluates_to_type = node;
                 }
                 break;
             };
@@ -2093,11 +2105,9 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
 bool analyze_semantics(ASTNode* root) {
     printf("\n🪰 Starting Semantic Analysis...\n");
     da_diagnostics_init(&diagnostics, 16);
-    Scope* current_scope = NULL;
-    push_scope(&current_scope);
 
+    Scope* current_scope = NULL;
     semantic_analyze(current_scope, root);
-    pop_scope(&current_scope);
 
     UNAM_ASSERT(current_scope == NULL, "last scope should have beep popped");
 

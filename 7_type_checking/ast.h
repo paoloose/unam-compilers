@@ -143,7 +143,7 @@ struct ASTNode {
 
         /* NODE_FOREACH */
         struct {
-            char* binded_term;   /* identifier for the loop variable */
+            ASTNode* binded_term;   /* identifier for the loop variable */
             ASTNode* iterator;   /* iterable expression */
             ASTNode* body;
             ASTNode* else_body;  /* optional */
