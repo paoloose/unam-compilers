@@ -1,0 +1,12 @@
+fn generate_add(to_add: int) -> (int) -> int {
+    fn (n: int) { n + to_add }
+}
+
+fn main() {
+    // We can create our adder 👍
+    let my_adder = generate_add(69);
+    my_adder(0);
+
+    // Or call it directly
+    generate_add(20)(0);
+}
