@@ -296,14 +296,14 @@ bool is_builting_literal(const char* lexeme) {
     return is_bool || is_int || is_float || is_string;
 }
 
-SymbolTableEntry* find_symbol(Scope* current_scope, const char* name) {
+SymbolTableEntry* find_symbol(const Scope* current_scope, const char* name) {
     // builtins
     if (strcmp(name, "int")    == 0) return get_int_symbol();
     if (strcmp(name, "float")  == 0) return get_float_symbol();
     if (strcmp(name, "bool")   == 0) return get_bool_symbol();
     if (strcmp(name, "string") == 0) return get_string_symbol();
     if (strcmp(name, "List")   == 0) return get_list_symbol();
-    Scope* s = current_scope;
+    const Scope* s = current_scope;
     while (s) {
         SymbolTableEntry* sym = s->symbols;
         while (sym) {
@@ -915,7 +915,6 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
                     da_free(&specialized_params_types);
                     da_free(&specialized_params_values);
                 }
-                outer_loop:
                 break;
             };
 
