@@ -945,7 +945,7 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
                     // If explicitely type, we check if matches the right-hand-side
                     if (let_type) {
                         if (!types_are_equal(let_type, evaluated_type_node_right)) {
-                            report_error(node, "Cannot bind variable: types don't match. Expected %s, got %s", node_repr(let_type), node_repr(evaluated_type_node_right));
+                            report_error(node, "Cannot bind variable '%s', expected type '%s', got '%s'", let_name, node_repr(let_type), node_repr(evaluated_type_node_right));
                             break;
                         }
                     }
