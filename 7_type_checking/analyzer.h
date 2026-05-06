@@ -72,6 +72,7 @@ typedef struct {
 typedef struct SymbolTableEntry {
     const char* name;
     int depth;
+    int referenced_count;
     ASTNode* node; // type information
     struct SymbolTableEntry* next;
 } SymbolTableEntry;

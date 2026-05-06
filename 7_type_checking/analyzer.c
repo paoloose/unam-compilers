@@ -193,12 +193,17 @@ static void pop_scope(Scope** current_scope) {
         return;
     }
     Scope* scope = *current_scope;
-    SymbolTableEntry* sym = scope->symbols;
-    while (sym) {
-        SymbolTableEntry* next = sym->next;
-        if (sym->name) free((char*)sym->name);
-        free(sym);
-        sym = next;
+    SymbolTableEntry* symbol = scope->symbols;
+
+    while (symbol) {
+        // But before blowing this entire scope, let's see what symbols were never referenced
+        if (symbol->referenced_count == 0) {
+            report_warning(symbol->node, "Symbol %s is defined, but never used", node_repr(symbol->node));
+        }
+        SymbolTableEntry* next = symbol->next;
+        if (symbol->name) free((char*)symbol->name);
+        free(symbol);
+        symbol = next;
     }
     *current_scope = scope->parent;
     free(scope);
@@ -381,6 +386,9 @@ void add_symbol_unchecked(Scope* current_scope, const char* name, ASTNode* type_
             break;
         };
         case NODE_ENUM_VARIANT: {
+            break;
+        };
+        case NODE_IDENTIFIER: {
             break;
         };
         case NODE_FUNCTION: {
@@ -629,6 +637,7 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
                         node->evaluates_to_type = param_type;
                     } else {
                         SymbolTableEntry* parameter_type = find_symbol(current_scope, parameter_type_name);
+                        parameter_type->referenced_count++;
                         if (!parameter_type || !parameter_type->node) {
                             report_error(node, "Function parameter '%s' is using a type '%s' that doesn't exist", parameter_name, parameter_type_name);
                         } else {
@@ -737,16 +746,16 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
                     SymbolTableEntry* resolved_func;
                     if (func->type == NODE_IDENTIFIER) {
                         resolved_func = find_symbol(current_scope, func_name);
+                        resolved_func->referenced_count++;
                         if (!resolved_func || !resolved_func->node) {
                             report_error(func, "Function is not defined: '%s'", func_name);
                             break;
                         }
-                        if (resolved_func->node->type != NODE_FUNCTION &&
-                            resolved_func->node->type != NODE_FUNC_PARAMETER &&
-                            resolved_func->node->type != NODE_ENUM_VARIANT &&
-                            resolved_func->node->type != NODE_SIGNATURE_TYPE) {
-                            report_error(func, "Trying to call a non function '%s'", node_repr(func->evaluates_to_type));
-                            break;
+                        if (resolved_func->node->type == NODE_IDENTIFIER) {
+                            ASTNode* resolves_to = resolved_func->node->evaluates_to_type;
+                            if (!resolves_to || (resolves_to->type != NODE_FUNCTION && resolves_to->type != NODE_SIGNATURE_TYPE)) {
+                                report_error(func, "-Trying to call a non function '%s'", node_repr(resolves_to));
+                            }
                         }
 
                         ASTNode* parent_function = find_nearest_function(&contexts_stack);
@@ -780,10 +789,10 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
                     }
                     // And in this case, we must evaluate what's on the left and make sure it evaluates to a function!
                     else {
-                        // TODO(NOTE): write a test dynamic function calls
                         calling_function = func->evaluates_to_type;
-                        if (calling_function == NULL || (calling_function->type != NODE_FUNCTION && calling_function->type != NODE_ENUM_VARIANT && calling_function->type != NODE_SIGNATURE_TYPE)) {
+                        if (!calling_function || ((calling_function->type != NODE_FUNCTION) && (calling_function->type != NODE_SIGNATURE_TYPE))) {
                             report_error(func, "Trying to call a non function '%s'", node_repr(func->evaluates_to_type));
+                            break;
                         }
                     }
                     da_astnodes specialized_params_types;  // generic types that are now specialized (NODE_PLAIN_TYPE)
@@ -936,7 +945,10 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
                             break;
                         }
                     }
-                    add_symbol_unshadowed(current_scope, let_name, evaluated_type_node_right);
+
+                    ASTNode* new_node = create_leaf_id(let_name);
+                    new_node->evaluates_to_type = evaluated_type_node_right;
+                    add_symbol_unshadowed(current_scope, let_name, new_node);
                 }
                 break;
             };
@@ -1514,6 +1526,7 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
             case NODE_PLAIN_TYPE: {
                 UNAM_DEBUG("  type name=%s", node_repr(node));
                 SymbolTableEntry* sym = find_symbol(current_scope, node->as.type.name);
+                sym->referenced_count++;
                 if (!sym) {
                     report_error(node, "Referenced type '%s' is not defined", node_repr(node));
                 }
@@ -1541,16 +1554,15 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
             };
             case NODE_IDENTIFIER: {
                 SymbolTableEntry* identifier = find_symbol(current_scope, node->as.ident.name);
+                identifier->referenced_count++;
                 if (!identifier) {
                     report_error(node, "Identifier '%s' was not declared in this scope", node_repr(node));
                     break;
                 }
-                if (identifier->node) {
-                    if (identifier->node->evaluates_to_type) {
-                        node->evaluates_to_type = identifier->node->evaluates_to_type;
-                    } else {
-                        node->evaluates_to_type = identifier->node;
-                    }
+                if (identifier->node->evaluates_to_type) {
+                    node->evaluates_to_type = identifier->node->evaluates_to_type;
+                } else {
+                    node->evaluates_to_type = identifier->node;
                 }
                 break;
             };
@@ -1702,8 +1714,11 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
                         // Verify that the field's type exists
                         ASTNode* field_type = struct_field->as.struct_field.value;
                         if (field_type && field_type->as.type.name) {
-                            if (!find_symbol(current_scope, field_type->as.type.name)) {
+                            SymbolTableEntry* type_sym = find_symbol(current_scope, field_type->as.type.name);
+                            if (!type_sym) {
                                 report_error(struct_field, "Type '%s' for struct field '%s' is not defined", node_repr(field_type), node_repr(struct_field));
+                            } else {
+                                type_sym->referenced_count++;
                             }
                         }
 
@@ -1725,6 +1740,7 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
                 }
 
                 if (phase == PHASE_ENTER) {
+                    struct_sym->referenced_count++;
                     da_analyze_frames_append(&stack, (AnalyzeFrame){ node, PHASE_EXIT });
 
                     // Analyze generic arguments if provided
@@ -1915,6 +1931,7 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
                 } else if (phase == PHASE_EXIT) {
                     SymbolTableEntry* found_type_symbol = find_symbol(current_scope, object->evaluates_to_type->as.type.name);
                     UNAM_ASSERT(found_type_symbol, "The object type should exist in the symbols table");
+                    found_type_symbol->referenced_count++;
                     ASTNode* object_type = found_type_symbol->node;
 
                     if (!object_type) {
@@ -2081,6 +2098,8 @@ bool analyze_semantics(ASTNode* root) {
 
     semantic_analyze(current_scope, root);
     pop_scope(&current_scope);
+
+    UNAM_ASSERT(current_scope == NULL, "last scope should have beep popped");
 
     int error_count = 0;
     int warning_count = 0;
