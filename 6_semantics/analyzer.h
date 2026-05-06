@@ -7,7 +7,6 @@
 typedef struct Symbol {
     char* name;
     ASTNode* type_node; // type information
-    int is_function;
     struct Symbol* next;
 } Symbol;
 

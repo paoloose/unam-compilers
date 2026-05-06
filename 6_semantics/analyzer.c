@@ -35,12 +35,11 @@ void pop_scope() {
     current_scope = parent;
 }
 
-void add_symbol(char* name, ASTNode* type_node, int is_function) {
+void add_symbol(char* name, ASTNode* type_node) {
     if (!current_scope) return;
     Symbol* sym = (Symbol*)calloc(1, sizeof(Symbol));
     sym->name = ast_strdup(name);
     sym->type_node = type_node;
-    sym->is_function = is_function;
     sym->next = current_scope->symbols;
     current_scope->symbols = sym;
 }
@@ -63,7 +62,7 @@ void analyze_node(ASTNode* node) {
 
     switch (node->type) {
         case NODE_FUNCTION: {
-            add_symbol(node->lexeme, NULL, 1);
+            add_symbol(node->lexeme, NULL);
             push_scope();
             printf("Function: %s\n", node->lexeme);
             // Process parameters
@@ -73,10 +72,10 @@ void analyze_node(ASTNode* node) {
                     char type_buf[128];
                     get_type_name(arg->left, type_buf, sizeof(type_buf));
                     printf("  Parameter: %s : %s\n", arg->lexeme, type_buf);
-                    add_symbol(arg->lexeme, arg->left, 0);
+                    add_symbol(arg->lexeme, arg->left);
                 }
                 else {
-                    add_symbol(arg->lexeme, NULL, 0);
+                    add_symbol(arg->lexeme, NULL);
                 }
                 arg = arg->next;
             }
@@ -93,10 +92,10 @@ void analyze_node(ASTNode* node) {
                     char type_buf[128];
                     get_type_name(arg->left, type_buf, sizeof(type_buf));
                     printf("  Parameter: %s : %s\n", arg->lexeme, type_buf);
-                    add_symbol(arg->lexeme, arg->left, 0);
+                    add_symbol(arg->lexeme, arg->left);
                 }
                 else {
-                    add_symbol(arg->lexeme, NULL, 0);
+                    add_symbol(arg->lexeme, NULL);
                 }
                 arg = arg->next;
             }
@@ -110,11 +109,11 @@ void analyze_node(ASTNode* node) {
                 char type_buf[128];
                 get_type_name(node->left, type_buf, sizeof(type_buf));
                 printf("Defining variable: %s : %s\n", node->lexeme, type_buf);
-                add_symbol(node->lexeme, node->left, 0);
+                add_symbol(node->lexeme, node->left);
             }
             else {
                 printf("Defining variable: %s (inferred)\n", node->lexeme);
-                add_symbol(node->lexeme, NULL, 0);
+                add_symbol(node->lexeme, NULL);
             }
             break;
         }
