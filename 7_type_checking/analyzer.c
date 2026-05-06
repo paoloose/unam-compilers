@@ -198,7 +198,7 @@ static void pop_scope(Scope** current_scope) {
     while (symbol) {
         // But before blowing this entire scope, let's see what symbols were never referenced
         if (symbol->referenced_count == 0) {
-            report_warning(symbol->node, "Symbol %s is defined, but never used", node_repr(symbol->node));
+            report_warning(symbol->node, "Symbol '%s' is defined, but never used", node_repr(symbol->node));
         }
         SymbolTableEntry* next = symbol->next;
         if (symbol->name) free((char*)symbol->name);
