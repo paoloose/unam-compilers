@@ -5,6 +5,36 @@
 
 #let full-page-chapter = state("full-page-chapter", false)
 
+#let note(body) = {
+  block(
+    fill: rgb("#f0f7ff"),
+    stroke: (left: 3pt + rgb("#2196f3")),
+    inset: (left: 12pt, y: 10pt, right: 10pt),
+    width: 100%,
+    radius: (right: 2pt),
+    breakable: true,
+  )[
+    #text(weight: "bold", fill: rgb("#1976d2"), size: 10pt)[NOTE]
+    #v(0pt)
+    #body
+  ]
+}
+
+#let important(body) = {
+  block(
+    fill: rgb("#fff5f5"),
+    stroke: (left: 3pt + rgb("#ff4136")),
+    inset: (left: 12pt, y: 10pt, right: 10pt),
+    width: 100%,
+    radius: (right: 2pt),
+    breakable: true,
+  )[
+    #text(weight: "bold", fill: rgb("#d32f2f"), size: 10pt)[IMPORTANT]
+    #v(0pt)
+    #body
+  ]
+}
+
 #let project(
   title: "",
   subtitle: none,
