@@ -198,7 +198,9 @@ static void pop_scope(Scope** current_scope) {
     while (symbol) {
         // But before blowing this entire scope, let's see what symbols were never referenced
         if (symbol->referenced_count == 0) {
-            report_warning(symbol->node, "Symbol '%s' is defined, but never used", node_repr(symbol->node));
+            if (symbol->node->type != NODE_PLAIN_TYPE) {
+                report_warning(symbol->node, "Symbol '%s' type %d is defined, but never used", node_repr(symbol->node), symbol->node->type);
+            }
         }
         SymbolTableEntry* next = symbol->next;
         if (symbol->name) free((char*)symbol->name);
@@ -385,9 +387,6 @@ void add_symbol_unchecked(Scope* current_scope, const char* name, ASTNode* type_
         case NODE_ENUM_DECL: {
             break;
         };
-        case NODE_ENUM_VARIANT: {
-            break;
-        };
         case NODE_IDENTIFIER: {
             break;
         };
@@ -395,9 +394,6 @@ void add_symbol_unchecked(Scope* current_scope, const char* name, ASTNode* type_
             break;
         };
         case NODE_FUNC_PARAMETER: {
-            break;
-        };
-        case NODE_LET: {
             break;
         };
         case NODE_PLAIN_TYPE:
@@ -877,6 +873,7 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
 
                         ASTNode* dg = specialized_params_types.length > 0 ? specialized_params_types.data[0] : NULL;
                         ASTNode* lg = specialized_params_values.length > 0 ? specialized_params_values.data[0] : NULL;
+
                         if (!types_match(param_type, passed_arg->evaluates_to_type, dg, lg)) {
                             report_error(passed_arg, "Expected type '%s', but passed type '%s'", node_repr(param_type), node_repr(passed_arg->evaluates_to_type));
                         }
@@ -935,6 +932,7 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
                     }
                     da_analyze_frames_append(&stack, (AnalyzeFrame){ node, PHASE_EXIT });
                     da_analyze_frames_append(&stack, (AnalyzeFrame){ let_value, PHASE_ENTER });
+                    da_analyze_frames_append(&stack, (AnalyzeFrame){ let_type, PHASE_ENTER });
                 } else if (phase == PHASE_EXIT) {
                     ASTNode* evaluated_type_node_right = let_value->evaluates_to_type;
                     if (!evaluated_type_node_right) {
@@ -1529,12 +1527,14 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
                 break;
             };
             case NODE_PLAIN_TYPE: {
+
                 UNAM_DEBUG("  type name=%s", node_repr(node));
                 SymbolTableEntry* sym = find_symbol(current_scope, node->as.type.name);
-                sym->referenced_count++;
                 if (!sym) {
                     report_error(node, "Referenced type '%s' is not defined", node_repr(node));
+                    break;
                 }
+                sym->referenced_count++;
 
                 node->as.type.is_generic = sym->node->as.type.is_generic;
                 // Analyze generic arguments if provided
@@ -1559,11 +1559,11 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
             };
             case NODE_IDENTIFIER: {
                 SymbolTableEntry* identifier = find_symbol(current_scope, node->as.ident.name);
-                identifier->referenced_count++;
                 if (!identifier) {
                     report_error(node, "Identifier '%s' was not declared in this scope", node_repr(node));
                     break;
                 }
+                identifier->referenced_count++;
                 if (identifier->node->evaluates_to_type) {
                     node->evaluates_to_type = identifier->node->evaluates_to_type;
                 } else {
@@ -1968,6 +1968,10 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
                     da_analyze_frames_append(&stack, (AnalyzeFrame){ node, PHASE_EXIT });
                     da_analyze_frames_append(&stack, (AnalyzeFrame){ object, PHASE_ENTER });
                 } else if (phase == PHASE_EXIT) {
+                    if (!object->evaluates_to_type) {
+                        report_error(object, "Cannot access member of void type");
+                        break;
+                    }
                     SymbolTableEntry* found_type_symbol = find_symbol(current_scope, object->evaluates_to_type->as.type.name);
                     UNAM_ASSERT(found_type_symbol, "The object type should exist in the symbols table");
                     found_type_symbol->referenced_count++;
