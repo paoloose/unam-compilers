@@ -1,0 +1,9 @@
+fn print<T>(what: T) { }
+
+fn add(a: int, b: int) {
+    a + b
+}
+
+fn main() {
+    print(add(5, 10));
+}

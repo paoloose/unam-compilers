@@ -1,0 +1,12 @@
+fn print<T>(what: T) { }
+
+fn main() {
+    let x = 12; // 1100
+    let y = 5;  // 0101
+    print(x & y);  // 4 (0100)
+    print(x | y);  // 13 (1101)
+    print(x ^ y);  // 9 (1001)
+    print(~x);
+    print(x << 2);
+    print(x >> 1);
+}

@@ -1,0 +1,40 @@
+fn print<T>(what: T) { }
+
+enum Result<T, E> {
+    Ok(T);
+    Err(E);
+}
+
+enum Option<T> {
+    Some(T);
+    None;
+}
+
+fn fibonacci(n: int) -> Result<int, string> {
+    if (n < 0) {
+        return Result::Err("Negative number not allowed");
+    }
+
+    if (n == 0 || n == 1) {
+        return Result::Ok(n);
+    }
+
+    match (fibonacci(n - 1)) {
+        Result::Ok(fib_n_1) -> {
+            match (fibonacci(n - 2)) {
+                Result::Ok(fib_n_2) -> Result::Ok(fib_n_1 + fib_n_2);
+                err -> err;
+            }
+        }
+        err -> err;
+    }
+}
+
+fn main() {
+    for i in 0..10 {
+        match (fibonacci(i)) {
+            Result::Ok(result) -> print("fib(" + i + ") = " + result);
+            Result::Err(msg) -> print("Error: " + msg);
+        }
+    }
+}

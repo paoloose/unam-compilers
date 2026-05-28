@@ -1,0 +1,9 @@
+fn collatz(num: int) -> bool {
+    let n: int = num;
+
+    return false;
+}
+
+fn main() {
+    collatz(69);
+}

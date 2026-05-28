@@ -1,0 +1,9 @@
+fn map<T, R>(arr: List<T>, func: (T)->R) -> List<R> {
+    []
+}
+
+// Example: Anonymous Functions (Lambdas)
+fn main() {
+    let nums = [1, 2, 3];
+    let partial_map: (List<T>)->int = map(_, fn(x: int) { x * 2 });
+}

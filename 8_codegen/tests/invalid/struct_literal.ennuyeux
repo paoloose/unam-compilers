@@ -1,0 +1,8 @@
+struct NonEmptyList<T> {
+    head: T;
+    tail: int;
+}
+
+fn main() {
+    let mylist = NonEmptyList<int> { };
+}

@@ -1,0 +1,5 @@
+// Example: Invalid syntax (should produce parse errors)
+// This file intentionally contains errors to test error reporting.
+fn main() {
+    let x = ;
+}

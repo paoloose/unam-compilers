@@ -1,0 +1,8 @@
+fn twice<T>(x: (T)->T) -> (T)->T {
+    fn (val: T) { x(x(val)) }
+}
+
+fn main() {
+    let add1 = fn (v: int) { v + 1 };
+    twice(add1)(0); // 2
+}

@@ -1,0 +1,10 @@
+fn print<T>(what: T) { }
+
+fn main() {
+    let numbers = [1, 2, 3];
+    match numbers {
+        [1, ..rest] -> print("Starts with 1");
+        [x, y, z] -> print("Exactly three");
+        _ -> print("Other");
+    }
+}

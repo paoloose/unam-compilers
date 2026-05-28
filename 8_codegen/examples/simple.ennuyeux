@@ -1,0 +1,20 @@
+fn print<T>(w: T) {}
+
+fn work() {
+    let f = fn () { 10 };
+
+    print(f);
+}
+
+// Also doesn't compile, but should:
+fn head<T>(list: List<T>) -> Option<T> {
+    match (list) {
+        [first, ..rest] -> Option::Some(first);
+        _ -> Option::None;
+    }
+}
+
+fn main() {
+    let arr = [[1], [2], [3]]; // type List<List<int>>
+    let first: Option<List<int>> = head(arr);
+}

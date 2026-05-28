@@ -1,0 +1,14 @@
+✅ NODE_LAMBDA should exists? or just be NODE_FUNCTION?
+
+Currently, we are saying that two types are equal if they have the same lexeme,
+however their generig args should match as well. For this, we should create a
+
+Currently, when evaluates_to_type is null, we treat is as void, but should we create an specialized type for void?
+
+PERF:
+
+Maintain a node->evaluated: bool, so that branches are not evaluated twice
+
+Replace calls like find_symbol(current_scope, "bool") with a const* global variable
+
+Currently, lambdas can access any global variable, i.e. "capture", we shuld limit it to current scope only
