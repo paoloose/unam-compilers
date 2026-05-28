@@ -717,6 +717,9 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
 
                     // Infer return type from body if not explicitly specified
                     ASTNode* body_type = node->as.function.body->evaluates_to_type;
+                    if (!body_type) {
+                        body_type = node->evaluates_to_type; // also valid :)
+                    }
                     if (body_type) {
                         if (node->as.function.return_type) {
                             if (!types_are_equal(node->as.function.return_type, body_type)) {
@@ -1314,6 +1317,7 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
                                 // So this return will actually set its type
                             }
                             bound_function->as.function.body->evaluates_to_type = returning_type;
+                            bound_function->evaluates_to_type = returning_type;
                         } else {
                             // Used didn't returned something, but function was expected the opposite
                             if (actual_return_type != NULL) {
