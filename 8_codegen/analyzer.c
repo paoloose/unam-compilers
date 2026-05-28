@@ -754,11 +754,11 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
                     SymbolTableEntry* resolved_func;
                     if (func->type == NODE_IDENTIFIER) {
                         resolved_func = find_symbol(current_scope, func_name);
-                        resolved_func->referenced_count++;
                         if (!resolved_func || !resolved_func->node) {
                             report_error(func, "Function is not defined: '%s'", func_name);
                             break;
                         }
+                        resolved_func->referenced_count++;
                         if (resolved_func->node->type == NODE_IDENTIFIER) {
                             ASTNode* resolves_to = resolved_func->node->evaluates_to_type;
                             if (!resolves_to || (resolves_to->type != NODE_FUNCTION && resolves_to->type != NODE_SIGNATURE_TYPE)) {
