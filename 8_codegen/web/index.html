@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ennuyeux Language Documentation</title>
+    <link rel="stylesheet" href="main.css">
+    <style>
+        .doc-section {
+            background-color: var(--color-underwater-blue);
+            padding: var(--gap-4);
+            border-radius: 8px;
+            margin-bottom: var(--gap-4);
+        }
+        .doc-section h2 {
+            margin-top: 0;
+            color: var(--color-faff-pink);
+            border-bottom: 2px solid rgba(255, 255, 255, 0.1);
+            padding-bottom: var(--gap-1);
+        }
+        .doc-section h3 {
+            color: var(--color-text-main);
+            margin-top: var(--gap-3);
+        }
+        .doc-code-block {
+            background: var(--color-lukewarm-charcoal);
+            padding: var(--gap-2);
+            border-radius: 8px;
+            margin: var(--gap-2) 0;
+            overflow-x: auto;
+        }
+        .doc-list {
+            list-style: none;
+            padding: 0;
+        }
+        .doc-list li {
+            margin-bottom: var(--gap-1);
+            padding-left: var(--gap-2);
+            border-left: 2px solid var(--color-faff-pink);
+        }
+    </style>
+</head>
+<body>
+    <header class="page-header">
+        <nav class="navbar content">
+            <a href="#" class="logo">
+                <img src="logo.png" alt="Ennuyeux Logo">
+                Ennuyeux
+            </a>
+            <div>
+                <a href="https://github.com/paoloose/unam-compilers.git" target="_blank" rel="noopener">GitHub Repository</a>
+            </div>
+        </nav>
+        
+        <div class="hero">
+            <div class="content">
+                <div class="text" style="text-align: center; max-width: 800px; margin: 0 auto;">
+                    <h1>Ennuyeux Language Documentation</h1>
+                    <p class="hero-subtitle">Comprehensive technical documentation for the Ennuyeux programming language. A robust, statically-typed, systems-level compiler project.</p>
+                </div>
+            </div>
+            <svg class="home-waves" viewBox="0 0 1200 100" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M0,40 C300,100 900,0 1200,60 L1200,100 L0,100 Z" fill="#292d3e"></path>
+            </svg>
+        </div>
+    </header>
+
+    <main style="background-color: var(--color-lukewarm-charcoal); padding-top: var(--gap-4); padding-bottom: var(--gap-6);">
+        <div class="content">
+            
+            <section class="doc-section">
+                <h2>1. Paradigm, Design & Purpose</h2>
+                <p><strong>Ennuyeux</strong> is a statically-typed, compiled, and procedural systems programming language. It is fundamentally designed for academic rigor, speed, and strict memory semantics, adopting philosophies from modern languages like Rust while maintaining the low-level simplicity of C.</p>
+                <p>The primary <strong>purpose</strong> of Ennuyeux is to provide a robust compiler pipeline featuring Lexing, Parsing (LALR), Semantic Analysis (with deep type inference and checking), Mid-Level IR lowering (with optimizations like Constant Folding and Dead Code Elimination), and final bytecode generation targeting a custom <code>FIS25</code> VM.</p>
+                <p>It acts as the capstone artifact for the UNAM Compilers Semester Project, demonstrating end-to-end language design, compiler implementation, and custom virtual machine execution with native graphics rendering capabilities.</p>
+            </section>
+
+            <section class="doc-section">
+                <h2>2. Accepted Data Types & Type Inference</h2>
+                <p>Ennuyeux enforces strict static typing. Variables are typed at compile-time, ensuring memory safety and deterministic execution. The supported primitive data types include:</p>
+                <ul class="doc-list">
+                    <li><code>int</code>: 32-bit signed integers.</li>
+                    <li><code>float</code>: 64-bit floating point numbers.</li>
+                    <li><code>bool</code>: Boolean values representing <code>true</code> or <code>false</code>.</li>
+                    <li><code>string</code>: UTF-8 encoded text sequences.</li>
+                    <li><code>arr</code>: Dynamic memory handles used for fast array allocations.</li>
+                </ul>
+                <p>The language features a highly intelligent Semantic Analyzer that provides <strong>Type Inference</strong>. You are not required to explicitly annotate types for variables; the compiler will automatically infer them based on the assigned expression.</p>
+                <div class="doc-code-block">
+                    <pre><code><span class="code-comment">// Variables with explicit typing</span>
+<span class="code-keyword">let</span> <span class="code-module">iterations</span>: <span class="code-type">int</span> <span class="code-operator">=</span> <span class="code-number">10000</span><span class="code-operator">;</span>
+
+<span class="code-comment">// Type inference: The compiler deduces these types automatically!</span>
+<span class="code-keyword">let</span> <span class="code-module">is_active</span> <span class="code-operator">=</span> <span class="code-keyword">true</span><span class="code-operator">;</span>
+<span class="code-keyword">let</span> <span class="code-module">pi_value</span> <span class="code-operator">=</span> <span class="code-number">3.14159</span><span class="code-operator">;</span>
+<span class="code-keyword">let</span> <span class="code-module">buffer</span> <span class="code-operator">=</span> <span class="hl-built_in">arr</span>(<span class="code-number">1024</span>)<span class="code-operator">;</span></code></pre>
+                </div>
+            </section>
+
+            <section class="doc-section">
+                <h2>3. Syntax & Reserved Words</h2>
+                <p>Ennuyeux relies on a minimal, clean set of reserved keywords for defining control flow, variables, and structural constructs.</p>
+                <p style="font-family: var(--font-family-title); font-size: 1.1em; color: var(--color-faff-pink); background: rgba(255, 255, 255, 0.05); padding: var(--gap-1); border-radius: 4px;">
+                    fn, let, if, else, loop, break, for, return, true, false, struct
+                </p>
+                <p>Scopes are always defined by curly braces <code>{}</code> and statements must be terminated with a semicolon <code>;</code>. Global variables can be declared at the top-level of any script and will be fully initialized before the application executes.</p>
+            </section>
+
+            <section class="doc-section">
+                <h2>4. Functions & Return Inference</h2>
+                <p>Functions are declared using the <code>fn</code> keyword, followed by the identifier and typed parameters. Ennuyeux supports <strong>Function Return Type Inference</strong>. The Semantic Analyzer evaluates the internal block and infers the return type automatically, meaning the <code>-&gt; type</code> annotation is entirely optional.</p>
+                <div class="doc-code-block">
+                    <pre><code><span class="code-comment">// Function with explicit return type</span>
+<span class="code-keyword">fn</span> <span class="hl-built_in">multiply</span>(<span class="code-module">x</span>: <span class="code-type">int</span>, <span class="code-module">y</span>: <span class="code-type">int</span>) <span class="code-operator">-></span> <span class="code-type">int</span> {
+    <span class="code-keyword">return</span> <span class="code-module">x</span> <span class="code-operator">*</span> <span class="code-module">y</span><span class="code-operator">;</span>
+}
+
+<span class="code-comment">// Function utilizing Return Type Inference</span>
+<span class="code-keyword">fn</span> <span class="hl-built_in">add</span>(<span class="code-module">x</span>: <span class="code-type">int</span>, <span class="code-module">y</span>: <span class="code-type">int</span>) {
+    <span class="code-keyword">return</span> <span class="code-module">x</span> <span class="code-operator">+</span> <span class="code-module">y</span><span class="code-operator">;</span> <span class="code-comment">// Automatically inferred as an integer</span>
+}
+
+<span class="code-comment">// Implicit returns: the last expression in a block is returned</span>
+<span class="code-keyword">fn</span> <span class="hl-built_in">subtract</span>(<span class="code-module">x</span>: <span class="code-type">int</span>, <span class="code-module">y</span>: <span class="code-type">int</span>) {
+    <span class="code-module">x</span> <span class="code-operator">-</span> <span class="code-module">y</span>
+}</code></pre>
+                </div>
+            </section>
+
+            <section class="doc-section">
+                <h2>5. Control Flow: Conditionals and Loops</h2>
+                <p>Ennuyeux provides strict yet highly optimizable procedural control blocks. All conditional branches and iterative blocks are evaluated at compile-time to ensure deterministic behavior.</p>
+                
+                <h3>Conditionals (if / else)</h3>
+                <p>Conditional branches evaluate boolean expressions.</p>
+                <div class="doc-code-block">
+                    <pre><code><span class="code-keyword">let</span> <span class="code-module">status</span> <span class="code-operator">=</span> <span class="code-number">200</span><span class="code-operator">;</span>
+<span class="code-comment">// Traditional if-else blocks</span>
+<span class="code-keyword">if</span> <span class="code-module">status</span> <span class="code-operator">==</span> <span class="code-number">200</span> {
+    <span class="hl-built_in">print</span>(<span class="code-string">"OK"</span>)<span class="code-operator">;</span>
+} <span class="code-keyword">else</span> {
+    <span class="hl-built_in">print</span>(<span class="code-string">"Error"</span>)<span class="code-operator">;</span>
+}</code></pre>
+                </div>
+
+                <h3>Iteration (loop, for, foreach)</h3>
+                <p>Ennuyeux provides multiple loop constructs: <code>loop</code> for infinite loops, C-style <code>for</code> loops, and <code>foreach</code> loops for iterating over arrays.</p>
+                <div class="doc-code-block">
+                    <pre><code><span class="code-comment">// Infinite loops continue until explicitly broken</span>
+<span class="code-keyword">let</span> <span class="code-module">counter</span> <span class="code-operator">=</span> <span class="code-number">0</span><span class="code-operator">;</span>
+<span class="code-keyword">loop</span> {
+    <span class="code-keyword">if</span> <span class="code-module">counter</span> <span class="code-operator">>=</span> <span class="code-number">10</span> { <span class="code-keyword">break</span><span class="code-operator">;</span> }
+    <span class="code-module">counter</span> <span class="code-operator">=</span> <span class="code-module">counter</span> <span class="code-operator">+</span> <span class="code-number">1</span><span class="code-operator">;</span>
+}<span class="code-operator">;</span>
+
+<span class="code-comment">// Traditional C-style for loop</span>
+<span class="code-keyword">for</span> (<span class="code-keyword">let</span> <span class="code-module">i</span> <span class="code-operator">=</span> <span class="code-number">0</span><span class="code-operator">;</span> <span class="code-module">i</span> <span class="code-operator"><</span> <span class="code-number">5</span><span class="code-operator">;</span> <span class="code-module">i</span> <span class="code-operator">=</span> <span class="code-module">i</span> <span class="code-operator">+</span> <span class="code-number">1</span>) {
+    <span class="hl-built_in">print</span>(<span class="code-module">i</span>)<span class="code-operator">;</span>
+}
+
+<span class="code-comment">// Foreach loops iterate seamlessly over arrays</span>
+<span class="code-keyword">let</span> <span class="code-module">items</span> <span class="code-operator">=</span> <span class="hl-built_in">arr</span>(<span class="code-number">3</span>)<span class="code-operator">;</span>
+<span class="code-keyword">for</span> <span class="code-module">item</span> <span class="code-keyword">in</span> <span class="code-module">items</span> {
+    <span class="hl-built_in">print</span>(<span class="code-module">item</span>)<span class="code-operator">;</span>
+}</code></pre>
+                </div>
+            </section>
+
+            <section class="doc-section">
+                <h2>6. Operators</h2>
+                <p>Ennuyeux provides a comprehensive set of operators for logic, arithmetic, and bitwise manipulation. All operators respect the type system and follow standard precedence rules.</p>
+                
+                <h3>Arithmetic Operators</h3>
+                <ul class="doc-list">
+                    <li><code>+</code>, <code>-</code>, <code>*</code>, <code>/</code>: Standard math operations.</li>
+                    <li><code>%</code>: Modulo operator for finding remainders.</li>
+                </ul>
+
+                <h3>Logical Operators</h3>
+                <ul class="doc-list">
+                    <li><code>==</code>, <code>!=</code>: Equality and inequality checks.</li>
+                    <li><code><</code>, <code>></code>, <code><=</code>, <code>>=</code>: Relational comparisons.</li>
+                    <li><code>&&</code> (and), <code>||</code> (or), <code>!</code> (not): Boolean logic evaluation.</li>
+                </ul>
+
+                <h3>Bitwise Operators</h3>
+                <ul class="doc-list">
+                    <li><code>&</code>, <code>|</code>, <code>^</code>, <code>~</code>: Bitwise AND, OR, XOR, and NOT operations.</li>
+                    <li><code><<</code>, <code>>></code>: Left and right bit shifts.</li>
+                </ul>
+            </section>
+
+            <section class="doc-section">
+                <h2>7. Data Structures (Structs & Arrays)</h2>
+                <p>Ennuyeux goes beyond primitive types by supporting foundational memory data structures:</p>
+                <ul class="doc-list">
+                    <li><strong>Arrays:</strong> Heap-allocated sequence of elements retrieved via idiomatic <code>arr[index]</code> bracket syntax. Array iteration is handled natively by the <code>foreach</code> loop.</li>
+                    <li><strong>Structs:</strong> Custom composite data types declared with the <code>struct</code> keyword. <em>Under the hood, Ennuyeux elegantly compiles struct definitions and instantiations down to ordered heap arrays, making field access extremely fast while leveraging existing array infrastructure.</em></li>
+                </ul>
+                <div class="doc-code-block">
+                    <pre><code><span class="code-comment">// Idiomatic array access</span>
+<span class="code-keyword">let</span> <span class="code-module">my_array</span> <span class="code-operator">=</span> <span class="hl-built_in">arr</span>(<span class="code-number">5</span>)<span class="code-operator">;</span>
+<span class="code-module">my_array</span>[<span class="code-number">0</span>] <span class="code-operator">=</span> <span class="code-number">10</span><span class="code-operator">;</span>
+<span class="code-module">my_array</span>[<span class="code-number">1</span>] <span class="code-operator">=</span> <span class="code-number">20</span><span class="code-operator">;</span>
+
+<span class="code-comment">// Declaring a composite struct</span>
+<span class="code-keyword">struct</span> Vector2 {
+    <span class="code-module">x</span>: <span class="code-type">int</span><span class="code-operator">,</span>
+    <span class="code-module">y</span>: <span class="code-type">int</span>
+}
+
+<span class="code-comment">// Structs compile to arrays seamlessly</span>
+<span class="code-keyword">let</span> <span class="code-module">v</span> <span class="code-operator">=</span> Vector2 { x: <span class="code-number">100</span>, y: <span class="code-number">200</span> }<span class="code-operator">;</span>
+<span class="hl-built_in">print</span>(<span class="code-module">v</span>.y)<span class="code-operator">;</span> <span class="code-comment">// Outputs 200</span></code></pre>
+                </div>
+            </section>
+
+            <section class="doc-section">
+                <h2>8. Native Built-in Functions</h2>
+                <p>The compiler integrates native hooks that map directly to the <code>FIS25</code> VM operations. These provide I/O, memory allocation, and graphical execution without the need for an external standard library. These are used exactly like regular functions.</p>
+                <ul class="doc-list">
+                    <li><code>print(value)</code>: Outputs integers, floats, or strings to the standard console.</li>
+                    <li><code>arr(size)</code>: Allocates a heap-based array and returns an <code>arr</code> handle.</li>
+                    <li><code>pixel(x, y, color)</code>: Directly interfaces with the Raylib-powered VM to draw a pixel on a 64x64 grid.</li>
+                    <li><code>sleep(ms)</code>: Pauses the VM execution for the specified milliseconds.</li>
+                    <li><code>time()</code>: Fetches the current UNIX epoch time in seconds.</li>
+                    <li><code>key(code)</code>: Captures asynchronous keyboard input from the VM engine.</li>
+                </ul>
+                <div class="doc-code-block">
+                    <pre><code><span class="code-comment">// Built-in functions example</span>
+<span class="hl-built_in">print</span>(<span class="code-string">"Drawing a red pixel..."</span>)<span class="code-operator">;</span>
+<span class="code-keyword">let</span> <span class="code-module">start</span> <span class="code-operator">=</span> <span class="hl-built_in">time</span>()<span class="code-operator">;</span>
+
+<span class="code-comment">// x, y, color (e.g. 1 for red)</span>
+<span class="hl-built_in">pixel</span>(<span class="code-number">32</span>, <span class="code-number">32</span>, <span class="code-number">1</span>)<span class="code-operator">;</span>
+<span class="hl-built_in">sleep</span>(<span class="code-number">1000</span>)<span class="code-operator">;</span> <span class="code-comment">// Wait for 1 second</span></code></pre>
+                </div>
+            </section>
+
+            <section class="doc-section">
+                <h2>9. Exhaustive Code Examples</h2>
+                <p>The following examples demonstrate the Ennuyeux compiler's capacity for complex mathematical routines, recursive logic, and iteration. All snippets are fully validated in the compiler's tournament test suite.</p>
+                
+                <h3>Collatz Conjecture</h3>
+                <div class="doc-code-block">
+                    <pre><code><span class="code-comment">// Computes the Collatz sequence for a given number</span>
+<span class="code-keyword">fn</span> <span class="hl-built_in">collatz</span>(<span class="code-module">num</span>: <span class="code-type">int</span>) <span class="code-operator">-></span> <span class="code-type">bool</span> {
+    <span class="code-keyword">let</span> <span class="code-module">n</span>: <span class="code-type">int</span> <span class="code-operator">=</span> <span class="code-module">num</span><span class="code-operator">;</span>
+    <span class="code-keyword">loop</span> {
+        <span class="code-comment">// Verify if the number is even using modulo</span>
+        <span class="code-keyword">if</span> <span class="code-module">n</span> <span class="code-operator">%</span> <span class="code-number">2</span> <span class="code-operator">==</span> <span class="code-number">0</span> {
+            <span class="code-module">n</span> <span class="code-operator">=</span> <span class="code-module">n</span> <span class="code-operator">/</span> <span class="code-number">2</span><span class="code-operator">;</span>
+        } <span class="code-keyword">else</span> {
+            <span class="code-module">n</span> <span class="code-operator">=</span> <span class="code-module">n</span> <span class="code-operator">*</span> <span class="code-number">3</span> <span class="code-operator">+</span> <span class="code-number">1</span><span class="code-operator">;</span>
+        }
+        <span class="code-comment">// The sequence always converges to 1</span>
+        <span class="code-keyword">if</span> <span class="code-module">n</span> <span class="code-operator">==</span> <span class="code-number">1</span> {
+            <span class="hl-built_in">print</span>(<span class="code-string">"success :3"</span>)<span class="code-operator">;</span>
+            <span class="code-keyword">return true</span><span class="code-operator">;</span>
+        }
+    }<span class="code-operator">;</span>
+    <span class="code-keyword">return false</span><span class="code-operator">;</span>
+}</code></pre>
+                </div>
+
+                <h3>Extended Euclidean Algorithm</h3>
+                <div class="doc-code-block">
+                    <pre><code><span class="code-comment">// Helper function for integer division using loops</span>
+<span class="code-keyword">fn</span> <span class="hl-built_in">idiv</span>(<span class="code-module">a</span>: <span class="code-type">int</span>, <span class="code-module">b</span>: <span class="code-type">int</span>) <span class="code-operator">-></span> <span class="code-type">int</span> {
+    <span class="code-keyword">let</span> <span class="code-module">q</span> <span class="code-operator">=</span> <span class="code-number">0</span><span class="code-operator">;</span>
+    <span class="code-keyword">let</span> <span class="code-module">r</span> <span class="code-operator">=</span> <span class="code-module">a</span><span class="code-operator">;</span>
+    <span class="code-keyword">loop</span> {
+        <span class="code-keyword">if</span> <span class="code-module">r</span> <span class="code-operator"><</span> <span class="code-module">b</span> {
+            <span class="code-keyword">return</span> <span class="code-module">q</span><span class="code-operator">;</span>
+        }
+        <span class="code-module">r</span> <span class="code-operator">=</span> <span class="code-module">r</span> <span class="code-operator">-</span> <span class="code-module">b</span><span class="code-operator">;</span>
+        <span class="code-module">q</span> <span class="code-operator">=</span> <span class="code-module">q</span> <span class="code-operator">+</span> <span class="code-number">1</span><span class="code-operator">;</span>
+    }<span class="code-operator">;</span>
+    <span class="code-keyword">return</span> <span class="code-module">q</span><span class="code-operator">;</span>
+}
+
+<span class="code-comment">// Core extended euclidean algorithm</span>
+<span class="code-keyword">fn</span> <span class="hl-built_in">ext_euclid</span>(<span class="code-module">a</span>: <span class="code-type">int</span>, <span class="code-module">b</span>: <span class="code-type">int</span>) <span class="code-operator">-></span> <span class="code-type">int</span> {
+    <span class="code-keyword">let</span> <span class="code-module">old_r</span> <span class="code-operator">=</span> <span class="code-module">a</span><span class="code-operator">;</span> <span class="code-keyword">let</span> <span class="code-module">r</span> <span class="code-operator">=</span> <span class="code-module">b</span><span class="code-operator">;</span>
+    <span class="code-keyword">let</span> <span class="code-module">old_s</span> <span class="code-operator">=</span> <span class="code-number">1</span><span class="code-operator">;</span> <span class="code-keyword">let</span> <span class="code-module">s</span> <span class="code-operator">=</span> <span class="code-number">0</span><span class="code-operator">;</span>
+    <span class="code-keyword">let</span> <span class="code-module">old_t</span> <span class="code-operator">=</span> <span class="code-number">0</span><span class="code-operator">;</span> <span class="code-keyword">let</span> <span class="code-module">t</span> <span class="code-operator">=</span> <span class="code-number">1</span><span class="code-operator">;</span>
+    
+    <span class="code-keyword">loop</span> {
+        <span class="code-keyword">if</span> <span class="code-module">r</span> <span class="code-operator">==</span> <span class="code-number">0</span> { <span class="code-keyword">break</span><span class="code-operator">;</span> }
+        <span class="code-keyword">let</span> <span class="code-module">quotient</span> <span class="code-operator">=</span> <span class="hl-built_in">idiv</span>(<span class="code-module">old_r</span>, <span class="code-module">r</span>)<span class="code-operator">;</span>
+        
+        <span class="code-keyword">let</span> <span class="code-module">temp_r</span> <span class="code-operator">=</span> <span class="code-module">old_r</span> <span class="code-operator">-</span> <span class="code-module">quotient</span> <span class="code-operator">*</span> <span class="code-module">r</span><span class="code-operator">;</span>
+        <span class="code-module">old_r</span> <span class="code-operator">=</span> <span class="code-module">r</span><span class="code-operator">;</span> <span class="code-module">r</span> <span class="code-operator">=</span> <span class="code-module">temp_r</span><span class="code-operator">;</span>
+        
+        <span class="code-keyword">let</span> <span class="code-module">temp_s</span> <span class="code-operator">=</span> <span class="code-module">old_s</span> <span class="code-operator">-</span> <span class="code-module">quotient</span> <span class="code-operator">*</span> <span class="code-module">s</span><span class="code-operator">;</span>
+        <span class="code-module">old_s</span> <span class="code-module">s</span><span class="code-operator">;</span> <span class="code-module">s</span> <span class="code-operator">=</span> <span class="code-module">temp_s</span><span class="code-operator">;</span>
+        
+        <span class="code-keyword">let</span> <span class="code-module">temp_t</span> <span class="code-operator">=</span> <span class="code-module">old_t</span> <span class="code-operator">-</span> <span class="code-module">quotient</span> <span class="code-operator">*</span> <span class="code-module">t</span><span class="code-operator">;</span>
+        <span class="code-module">old_t</span> <span class="code-operator">=</span> <span class="code-module">t</span><span class="code-operator">;</span> <span class="code-module">t</span> <span class="code-operator">=</span> <span class="code-module">temp_t</span><span class="code-operator">;</span>
+    }<span class="code-operator">;</span>
+    <span class="hl-built_in">print</span>(<span class="code-string">"GCD:"</span>)<span class="code-operator">;</span> <span class="hl-built_in">print</span>(<span class="code-module">old_r</span>)<span class="code-operator">;</span>
+    <span class="code-keyword">return</span> <span class="code-module">old_r</span><span class="code-operator">;</span>
+}</code></pre>
+                </div>
+
+                <h3>Monte Carlo Pi Approximation (With Global Variables)</h3>
+                <div class="doc-code-block">
+                    <pre><code><span class="code-comment">// Top level variables are evaluated globally before main runs</span>
+<span class="code-keyword">let</span> <span class="code-module">CONST</span> <span class="code-operator">=</span> <span class="code-number">2147483647</span><span class="code-operator">;</span>
+
+<span class="code-keyword">fn</span> <span class="hl-built_in">mc_pi</span>(<span class="code-module">iterations</span>: <span class="code-type">int</span>) <span class="code-operator">-></span> <span class="code-type">float</span> {
+    <span class="code-keyword">let</span> <span class="code-module">inside</span> <span class="code-operator">=</span> <span class="code-number">0</span><span class="code-operator">;</span>
+    <span class="code-keyword">let</span> <span class="code-module">seed</span> <span class="code-operator">=</span> <span class="code-number">12345</span><span class="code-operator">;</span>
+    <span class="code-keyword">let</span> <span class="code-module">i</span> <span class="code-operator">=</span> <span class="code-number">0</span><span class="code-operator">;</span>
+    
+    <span class="code-keyword">loop</span> {
+        <span class="code-keyword">if</span> <span class="code-module">i</span> <span class="code-operator">>=</span> <span class="code-module">iterations</span> { <span class="code-keyword">break</span><span class="code-operator">;</span> }
+        
+        <span class="code-comment">// Floating point parsing and precision checks</span>
+        <span class="code-module">seed</span> <span class="code-operator">=</span> (<span class="code-module">seed</span> <span class="code-operator">*</span> <span class="code-number">16807</span>) <span class="code-operator">%</span> <span class="code-module">CONST</span><span class="code-operator">;</span>
+        <span class="code-keyword">let</span> <span class="code-module">x</span> <span class="code-operator">=</span> (<span class="code-module">seed</span> <span class="code-operator">%</span> <span class="code-number">1000</span>) <span class="code-operator">/</span> <span class="code-number">1000.0</span><span class="code-operator">;</span>
+        
+        <span class="code-module">seed</span> <span class="code-operator">=</span> (<span class="code-module">seed</span> <span class="code-operator">*</span> <span class="code-number">16807</span>) <span class="code-operator">%</span> <span class="code-module">CONST</span><span class="code-operator">;</span>
+        <span class="code-keyword">let</span> <span class="code-module">y</span> <span class="code-operator">=</span> (<span class="code-module">seed</span> <span class="code-operator">%</span> <span class="code-number">1000</span>) <span class="code-operator">/</span> <span class="code-number">1000.0</span><span class="code-operator">;</span>
+        
+        <span class="code-keyword">if</span> (<span class="code-module">x</span> <span class="code-operator">*</span> <span class="code-module">x</span> <span class="code-operator">+</span> <span class="code-module">y</span> <span class="code-operator">*</span> <span class="code-module">y</span>) <span class="code-operator"><=</span> <span class="code-number">1.0</span> {
+            <span class="code-module">inside</span> <span class="code-operator">=</span> <span class="code-module">inside</span> <span class="code-operator">+</span> <span class="code-number">1</span><span class="code-operator">;</span>
+        }
+        <span class="code-module">i</span> <span class="code-operator">=</span> <span class="code-module">i</span> <span class="code-operator">+</span> <span class="code-number">1</span><span class="code-operator">;</span>
+    }<span class="code-operator">;</span>
+    <span class="code-keyword">return</span> (<span class="code-module">inside</span> <span class="code-operator">*</span> <span class="code-number">4.0</span>) <span class="code-operator">/</span> <span class="code-module">iterations</span><span class="code-operator">;</span>
+}</code></pre>
+                </div>
+
+                <h3>Prime Number Calculation</h3>
+                <div class="doc-code-block">
+                    <pre><code><span class="code-keyword">fn</span> <span class="hl-built_in">is_prime</span>(<span class="code-module">n</span>: <span class="code-type">int</span>) <span class="code-operator">-></span> <span class="code-type">bool</span> {
+    <span class="code-keyword">if</span> <span class="code-module">n</span> <span class="code-operator"><=</span> <span class="code-number">1</span> {
+        <span class="code-keyword">return false</span><span class="code-operator">;</span>
+    }
+    <span class="code-keyword">let</span> <span class="code-module">i</span> <span class="code-operator">=</span> <span class="code-number">2</span><span class="code-operator">;</span>
+    <span class="code-keyword">loop</span> {
+        <span class="code-comment">// Conditionals automatically infer boolean returns</span>
+        <span class="code-keyword">if</span> <span class="code-module">i</span> <span class="code-operator">*</span> <span class="code-module">i</span> <span class="code-operator">></span> <span class="code-module">n</span> {
+            <span class="code-keyword">return true</span><span class="code-operator">;</span>
+        }
+        <span class="code-keyword">if</span> <span class="code-module">n</span> <span class="code-operator">%</span> <span class="code-module">i</span> <span class="code-operator">==</span> <span class="code-number">0</span> {
+            <span class="code-keyword">return false</span><span class="code-operator">;</span>
+        }
+        <span class="code-module">i</span> <span class="code-operator">=</span> <span class="code-module">i</span> <span class="code-operator">+</span> <span class="code-number">1</span><span class="code-operator">;</span>
+    }<span class="code-operator">;</span>
+    <span class="code-keyword">return false</span><span class="code-operator">;</span>
+}</code></pre>
+                </div>
+                
+                <h3>Kaprekar's Constant Routine</h3>
+                <div class="doc-code-block">
+                    <pre><code><span class="code-comment">// Kaprekar sequence generator</span>
+<span class="code-keyword">fn</span> <span class="hl-built_in">kaprekar</span>(<span class="code-module">n</span>: <span class="code-type">int</span>) <span class="code-operator">-></span> <span class="code-type">int</span> {
+    <span class="code-keyword">let</span> <span class="code-module">steps</span> <span class="code-operator">=</span> <span class="code-number">0</span><span class="code-operator">;</span>
+    <span class="code-keyword">let</span> <span class="code-module">current</span> <span class="code-operator">=</span> <span class="code-module">n</span><span class="code-operator">;</span>
+    
+    <span class="code-keyword">loop</span> {
+        <span class="code-comment">// The Kaprekar constant</span>
+        <span class="code-keyword">if</span> <span class="code-module">current</span> <span class="code-operator">==</span> <span class="code-number">6174</span> {
+            <span class="code-keyword">return</span> <span class="code-module">steps</span><span class="code-operator">;</span>
+        }
+        <span class="code-keyword">if</span> <span class="code-module">current</span> <span class="code-operator">==</span> <span class="code-number">0</span> {
+            <span class="code-keyword">return</span> <span class="code-operator">-</span><span class="code-number">1</span><span class="code-operator">;</span>
+        }
+        
+        <span class="code-keyword">let</span> <span class="code-module">desc</span> <span class="code-operator">=</span> <span class="hl-built_in">sort_desc</span>(<span class="code-module">current</span>)<span class="code-operator">;</span>
+        <span class="code-keyword">let</span> <span class="code-module">asc</span> <span class="code-operator">=</span> <span class="hl-built_in">sort_asc</span>(<span class="code-module">current</span>)<span class="code-operator">;</span>
+        <span class="code-module">current</span> <span class="code-operator">=</span> <span class="code-module">desc</span> <span class="code-operator">-</span> <span class="code-module">asc</span><span class="code-operator">;</span>
+        <span class="code-module">steps</span> <span class="code-operator">=</span> <span class="code-module">steps</span> <span class="code-operator">+</span> <span class="code-number">1</span><span class="code-operator">;</span>
+    }<span class="code-operator">;</span>
+    <span class="code-keyword">return</span> <span class="code-module">steps</span><span class="code-operator">;</span>
+}</code></pre>
+                </div>
+            </section>
+
+        </div>
+    </main>
+
+    <footer class="footer">
+        <div class="content">
+            <div class="first">
+                <a href="https://github.com/paoloose/unam-compilers.git" class="logo">Ennuyeux</a>
+                <p>Formal delivery for the UNAM Compilers Semester Project.</p>
+            </div>
+            <div class="middle">
+                <ul>
+                    <li><a href="#">Documentation</a></li>
+                    <li><a href="#">Paradigm</a></li>
+                    <li><a href="#">Types</a></li>
+                </ul>
+            </div>
+            <div class="last">
+                <p>&copy; 2026 UNAM Compilers</p>
+            </div>
+        </div>
+    </footer>
+</body>
+</html>
