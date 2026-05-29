@@ -116,6 +116,9 @@ static void build_repr(ASTNode* node) {
         case NODE_MEMBER_ACCESS:
             append_repr(node->as.member.op);
             break;
+        case NODE_ARRAY_ACCESS:
+            append_repr("[...]");
+            break;
         case NODE_SCOPE:
             append_repr("{ scope }");
             break;
@@ -191,7 +194,8 @@ void print_ast(ASTNode* node, int indent) {
         "NODE_SCOPE",
         "NODE_FOREACH",
         "NODE_PATTERN_CONS",
-        "NODE_ENUM_PATTERN"
+        "NODE_ENUM_PATTERN",
+        "NODE_ARRAY_ACCESS"
     };
 
     printf(UNAM_MAGENTA "[" UNAM_BLUE "%s" UNAM_MAGENTA "]" UNAM_RESET, type_names[node->type]);
@@ -323,6 +327,10 @@ void print_ast(ASTNode* node, int indent) {
             print_ast(node->as.member.object, indent + 1);
             print_ast(node->as.member.member, indent + 1);
             print_ast(node->as.member.args, indent + 1);
+            break;
+        case NODE_ARRAY_ACCESS:
+            print_ast(node->as.array_access.array, indent + 1);
+            print_ast(node->as.array_access.index, indent + 1);
             break;
         case NODE_RANGE:
             print_ast(node->as.range.start, indent + 1);

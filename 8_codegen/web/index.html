@@ -42,21 +42,23 @@
 </head>
 <body>
     <header class="page-header">
-        <nav class="navbar content">
-            <a href="#" class="logo">
-                <img src="logo.png" alt="Ennuyeux Logo">
-                Ennuyeux
-            </a>
-            <div>
-                <a href="https://github.com/paoloose/unam-compilers.git" target="_blank" rel="noopener">GitHub Repository</a>
+        <nav class="navbar">
+            <div class="content">
+                <a href="#" class="logo">
+                    <img src="logo.png" alt="Ennuyeux Logo">
+                    Ennuyeux
+                </a>
+                <div>
+                    <a href="https://github.com/paoloose/unam-compilers.git" target="_blank" rel="noopener">GitHub Repository</a>
+                </div>
             </div>
         </nav>
         
         <div class="hero">
             <div class="content">
                 <div class="text" style="text-align: center; max-width: 800px; margin: 0 auto;">
-                    <h1>Ennuyeux Language Documentation</h1>
-                    <p class="hero-subtitle">Comprehensive technical documentation for the Ennuyeux programming language. A robust, statically-typed, systems-level compiler project.</p>
+                    <h1 style="font-weight: 800; margin-bottom: 24px;">Ennuyeux Language Documentation</h1>
+                    <p class="hero-subtitle">Ennuyeux stands for boring - a boring but ergonomic programming language. A robust, statically-typed, systems-level compiler project.</p>
                 </div>
             </div>
             <svg class="home-waves" viewBox="0 0 1200 100" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
@@ -70,7 +72,7 @@
             
             <section class="doc-section">
                 <h2>1. Paradigm, Design & Purpose</h2>
-                <p><strong>Ennuyeux</strong> is a statically-typed, compiled, and procedural systems programming language. It is fundamentally designed for academic rigor, speed, and strict memory semantics, adopting philosophies from modern languages like Rust while maintaining the low-level simplicity of C.</p>
+                <p><strong>Ennuyeux</strong> (which translates to "boring" in French) embraces the philosophy of being a boring but highly ergonomic programming language. It is a statically-typed, expression-based, compiled systems language. It is fundamentally designed for academic rigor, speed, and strict memory semantics, heavily adopting its syntax and design philosophy from modern languages like Rust while maintaining the low-level simplicity of C.</p>
                 <p>The primary <strong>purpose</strong> of Ennuyeux is to provide a robust compiler pipeline featuring Lexing, Parsing (LALR), Semantic Analysis (with deep type inference and checking), Mid-Level IR lowering (with optimizations like Constant Folding and Dead Code Elimination), and final bytecode generation targeting a custom <code>FIS25</code> VM.</p>
                 <p>It acts as the capstone artifact for the UNAM Compilers Semester Project, demonstrating end-to-end language design, compiler implementation, and custom virtual machine execution with native graphics rendering capabilities.</p>
             </section>
@@ -144,7 +146,7 @@
                 </div>
 
                 <h3>Iteration (loop, for, foreach)</h3>
-                <p>Ennuyeux provides multiple loop constructs: <code>loop</code> for infinite loops, C-style <code>for</code> loops, and <code>foreach</code> loops for iterating over arrays.</p>
+                <p>Ennuyeux provides multiple loop constructs: <code>loop</code> for infinite loops, C-style <code>for</code> loops, and <code>foreach</code> loops. Note that <code>foreach</code> strictly accepts array types and numerical ranges for iteration to guarantee memory safety.</p>
                 <div class="doc-code-block">
                     <pre><code><span class="code-comment">// Infinite loops continue until explicitly broken</span>
 <span class="code-keyword">let</span> <span class="code-module">counter</span> <span class="code-operator">=</span> <span class="code-number">0</span><span class="code-operator">;</span>
@@ -172,7 +174,7 @@
                 
                 <h3>Arithmetic Operators</h3>
                 <ul class="doc-list">
-                    <li><code>+</code>, <code>-</code>, <code>*</code>, <code>/</code>: Standard math operations.</li>
+                    <li><code>+</code>, <code>-</code>, <code>*</code>, <code>/</code>: Standard math operations. The <code>+</code> operator also seamlessly handles dynamic string concatenation when at least one operand is a string.</li>
                     <li><code>%</code>: Modulo operator for finding remainders.</li>
                 </ul>
 
@@ -188,6 +190,20 @@
                     <li><code>&</code>, <code>|</code>, <code>^</code>, <code>~</code>: Bitwise AND, OR, XOR, and NOT operations.</li>
                     <li><code><<</code>, <code>>></code>: Left and right bit shifts.</li>
                 </ul>
+
+                <div class="doc-code-block">
+                    <pre><code><span class="code-comment">// Arithmetic & String Concatenation</span>
+<span class="code-keyword">let</span> <span class="code-module">math</span> <span class="code-operator">=</span> (<span class="code-number">10</span> <span class="code-operator">*</span> <span class="code-number">5</span>) <span class="code-operator">+</span> <span class="code-number">2</span><span class="code-operator">;</span>
+<span class="code-keyword">let</span> <span class="code-module">greeting</span> <span class="code-operator">=</span> <span class="code-string">"Hello, "</span> <span class="code-operator">+</span> <span class="code-string">"World!"</span><span class="code-operator">;</span>
+
+<span class="code-comment">// Logic and Relational</span>
+<span class="code-keyword">let</span> <span class="code-module">is_valid</span> <span class="code-operator">=</span> (<span class="code-module">math</span> <span class="code-operator">></span> <span class="code-number">50</span>) <span class="code-operator">&&</span> (<span class="code-module">greeting</span> <span class="code-operator">!=</span> <span class="code-string">""</span>)<span class="code-operator">;</span>
+<span class="code-keyword">if</span> <span class="code-operator">!</span><span class="code-module">is_valid</span> { <span class="hl-built_in">print</span>(<span class="code-string">"Invalid!"</span>)<span class="code-operator">;</span> }
+
+<span class="code-comment">// Bitwise</span>
+<span class="code-keyword">let</span> <span class="code-module">flags</span> <span class="code-operator">=</span> <span class="code-number">1</span> <span class="code-operator"><<</span> <span class="code-number">3</span><span class="code-operator">;</span> <span class="code-comment">// Bit shift</span>
+<span class="code-module">flags</span> <span class="code-operator">=</span> <span class="code-module">flags</span> <span class="code-operator">|</span> <span class="code-number">2</span><span class="code-operator">;</span>   <span class="code-comment">// Bitwise OR</span></code></pre>
+                </div>
             </section>
 
             <section class="doc-section">
@@ -195,7 +211,7 @@
                 <p>Ennuyeux goes beyond primitive types by supporting foundational memory data structures:</p>
                 <ul class="doc-list">
                     <li><strong>Arrays:</strong> Heap-allocated sequence of elements retrieved via idiomatic <code>arr[index]</code> bracket syntax. Array iteration is handled natively by the <code>foreach</code> loop.</li>
-                    <li><strong>Structs:</strong> Custom composite data types declared with the <code>struct</code> keyword. <em>Under the hood, Ennuyeux elegantly compiles struct definitions and instantiations down to ordered heap arrays, making field access extremely fast while leveraging existing array infrastructure.</em></li>
+                    <li><strong>Structs:</strong> Custom composite data types declared with the <code>struct</code> keyword. <em>Under the hood, Ennuyeux elegantly compiles struct definitions and instantiations down to ordered dynamic heap arrays. During the semantic analysis phase, field accesses like <code>player.health</code> are mapped to their corresponding numerical offset indices (e.g., <code>player[1]</code>), enabling lightning-fast property retrieval while avoiding complex memory layouts!</em></li>
                 </ul>
                 <div class="doc-code-block">
                     <pre><code><span class="code-comment">// Idiomatic array access</span>
@@ -211,7 +227,27 @@
 
 <span class="code-comment">// Structs compile to arrays seamlessly</span>
 <span class="code-keyword">let</span> <span class="code-module">v</span> <span class="code-operator">=</span> Vector2 { x: <span class="code-number">100</span>, y: <span class="code-number">200</span> }<span class="code-operator">;</span>
-<span class="hl-built_in">print</span>(<span class="code-module">v</span>.y)<span class="code-operator">;</span> <span class="code-comment">// Outputs 200</span></code></pre>
+<span class="hl-built_in">print</span>(<span class="code-module">v</span>.y)<span class="code-operator">;</span> <span class="code-comment">// Outputs 200</span>
+
+<span class="code-comment">// Nested structs allow complex memory architectures</span>
+<span class="code-keyword">struct</span> Position {
+    <span class="code-module">x</span>: <span class="code-type">int</span><span class="code-operator">;</span>
+    <span class="code-module">y</span>: <span class="code-type">int</span><span class="code-operator">;</span>
+}
+
+<span class="code-keyword">struct</span> Player {
+    <span class="code-module">pos</span>: <span class="code-type">Position</span><span class="code-operator">;</span>
+    <span class="code-module">health</span>: <span class="code-type">int</span><span class="code-operator">;</span>
+}
+
+<span class="code-comment">// Instantiate and navigate deep fields</span>
+<span class="code-keyword">let</span> <span class="code-module">p</span> <span class="code-operator">=</span> Player { 
+    pos: Position { x: <span class="code-number">10</span>, y: <span class="code-number">20</span> }, 
+    health: <span class="code-number">100</span> 
+}<span class="code-operator">;</span>
+
+<span class="code-module">p</span>.health <span class="code-operator">-=</span> <span class="code-number">15</span><span class="code-operator">;</span>
+<span class="code-module">p</span>.pos.x <span class="code-operator">+=</span> <span class="code-number">5</span><span class="code-operator">;</span></code></pre>
                 </div>
             </section>
 
@@ -220,6 +256,7 @@
                 <p>The compiler integrates native hooks that map directly to the <code>FIS25</code> VM operations. These provide I/O, memory allocation, and graphical execution without the need for an external standard library. These are used exactly like regular functions.</p>
                 <ul class="doc-list">
                     <li><code>print(value)</code>: Outputs integers, floats, or strings to the standard console.</li>
+                    <li><code>input()</code>: Halts execution and reads standard input, resolving loosely to a typed value.</li>
                     <li><code>arr(size)</code>: Allocates a heap-based array and returns an <code>arr</code> handle.</li>
                     <li><code>pixel(x, y, color)</code>: Directly interfaces with the Raylib-powered VM to draw a pixel on a 64x64 grid.</li>
                     <li><code>sleep(ms)</code>: Pauses the VM execution for the specified milliseconds.</li>
@@ -233,7 +270,12 @@
 
 <span class="code-comment">// x, y, color (e.g. 1 for red)</span>
 <span class="hl-built_in">pixel</span>(<span class="code-number">32</span>, <span class="code-number">32</span>, <span class="code-number">1</span>)<span class="code-operator">;</span>
-<span class="hl-built_in">sleep</span>(<span class="code-number">1000</span>)<span class="code-operator">;</span> <span class="code-comment">// Wait for 1 second</span></code></pre>
+<span class="hl-built_in">sleep</span>(<span class="code-number">1000</span>)<span class="code-operator">;</span> <span class="code-comment">// Wait for 1 second</span>
+
+<span class="code-comment">// Reading user input from the console</span>
+<span class="hl-built_in">print</span>(<span class="code-string">"Enter a number to double it:"</span>)<span class="code-operator">;</span>
+<span class="code-keyword">let</span> <span class="code-module">user_val</span> <span class="code-operator">=</span> <span class="hl-built_in">input</span>()<span class="code-operator">;</span>
+<span class="hl-built_in">print</span>(<span class="code-module">user_val</span> <span class="code-operator">*</span> <span class="code-number">2</span>)<span class="code-operator">;</span></code></pre>
                 </div>
             </section>
 
@@ -353,28 +395,124 @@
 }</code></pre>
                 </div>
                 
-                <h3>Kaprekar's Constant Routine</h3>
-                <div class="doc-code-block">
-                    <pre><code><span class="code-comment">// Kaprekar sequence generator</span>
-<span class="code-keyword">fn</span> <span class="hl-built_in">kaprekar</span>(<span class="code-module">n</span>: <span class="code-type">int</span>) <span class="code-operator">-></span> <span class="code-type">int</span> {
-    <span class="code-keyword">let</span> <span class="code-module">steps</span> <span class="code-operator">=</span> <span class="code-number">0</span><span class="code-operator">;</span>
-    <span class="code-keyword">let</span> <span class="code-module">current</span> <span class="code-operator">=</span> <span class="code-module">n</span><span class="code-operator">;</span>
+                                                <h3>Kaprekar's Constant Routine</h3>
+                <div class="doc-code-block" style="max-height: 500px; overflow-y: auto;">
+                    <pre><code><span class="code-keyword">fn</span> <span class="hl-built_in">idiv</span>(a: <span class="code-type">int</span>, b: <span class="code-type">int</span>) -&gt; <span class="code-type">int</span> {
+    <span class="code-keyword">let</span> q = <span class="code-number">0</span>;
+    <span class="code-keyword">let</span> r = a;
+    <span class="code-keyword">loop</span> {
+        <span class="code-keyword">if</span> r &lt; b {
+            <span class="code-keyword">return</span> q;
+        }
+        r = r - b;
+        q = q + <span class="code-number">1</span>;
+    };
+    <span class="code-keyword">return</span> q;
+}
+
+<span class="code-keyword">fn</span> <span class="hl-built_in">get_digit</span>(n: <span class="code-type">int</span>, pos: <span class="code-type">int</span>) -&gt; <span class="code-type">int</span> {
+    <span class="code-keyword">let</span> temp = n;
+    <span class="code-keyword">let</span> i = <span class="code-number">1</span>;
+    <span class="code-keyword">loop</span> {
+        <span class="code-keyword">if</span> i &gt;= pos {
+            <span class="code-keyword">break</span>;
+        }
+        temp = <span class="hl-built_in">idiv</span>(temp, <span class="code-number">10</span>);
+        i = i + <span class="code-number">1</span>;
+    };
+    <span class="code-keyword">return</span> temp % <span class="code-number">10</span>;
+}
+
+<span class="code-keyword">fn</span> <span class="hl-built_in">sort_desc</span>(n: <span class="code-type">int</span>) -&gt; <span class="code-type">int</span> {
+    <span class="code-keyword">let</span> d1 = <span class="hl-built_in">get_digit</span>(n, <span class="code-number">1</span>);
+    <span class="code-keyword">let</span> d2 = <span class="hl-built_in">get_digit</span>(n, <span class="code-number">2</span>);
+    <span class="code-keyword">let</span> d3 = <span class="hl-built_in">get_digit</span>(n, <span class="code-number">3</span>);
+    <span class="code-keyword">let</span> d4 = <span class="hl-built_in">get_digit</span>(n, <span class="code-number">4</span>);
+    
+    <span class="code-keyword">let</span> temp = <span class="code-number">0</span>;
+    <span class="code-keyword">if</span> d1 &gt; d2 { temp = d1; d1 = d2; d2 = temp; }
+    <span class="code-keyword">if</span> d2 &gt; d3 { temp = d2; d2 = d3; d3 = temp; }
+    <span class="code-keyword">if</span> d3 &gt; d4 { temp = d3; d3 = d4; d4 = temp; }
+    
+    <span class="code-keyword">if</span> d1 &gt; d2 { temp = d1; d1 = d2; d2 = temp; }
+    <span class="code-keyword">if</span> d2 &gt; d3 { temp = d2; d2 = d3; d3 = temp; }
+    
+    <span class="code-keyword">if</span> d1 &gt; d2 { temp = d1; d1 = d2; d2 = temp; }
+    
+    <span class="code-keyword">return</span> d4 * <span class="code-number">1000</span> + d3 * <span class="code-number">100</span> + d2 * <span class="code-number">10</span> + d1;
+}
+
+<span class="code-keyword">fn</span> <span class="hl-built_in">sort_asc</span>(n: <span class="code-type">int</span>) -&gt; <span class="code-type">int</span> {
+    <span class="code-keyword">let</span> d1 = <span class="hl-built_in">get_digit</span>(n, <span class="code-number">1</span>);
+    <span class="code-keyword">let</span> d2 = <span class="hl-built_in">get_digit</span>(n, <span class="code-number">2</span>);
+    <span class="code-keyword">let</span> d3 = <span class="hl-built_in">get_digit</span>(n, <span class="code-number">3</span>);
+    <span class="code-keyword">let</span> d4 = <span class="hl-built_in">get_digit</span>(n, <span class="code-number">4</span>);
+    
+    <span class="code-keyword">let</span> temp = <span class="code-number">0</span>;
+    <span class="code-keyword">if</span> d1 &lt; d2 { temp = d1; d1 = d2; d2 = temp; }
+    <span class="code-keyword">if</span> d2 &lt; d3 { temp = d2; d2 = d3; d3 = temp; }
+    <span class="code-keyword">if</span> d3 &lt; d4 { temp = d3; d3 = d4; d4 = temp; }
+    
+    <span class="code-keyword">if</span> d1 &lt; d2 { temp = d1; d1 = d2; d2 = temp; }
+    <span class="code-keyword">if</span> d2 &lt; d3 { temp = d2; d2 = d3; d3 = temp; }
+    
+    <span class="code-keyword">if</span> d1 &lt; d2 { temp = d1; d1 = d2; d2 = temp; }
+    
+    <span class="code-keyword">return</span> d4 * <span class="code-number">1000</span> + d3 * <span class="code-number">100</span> + d2 * <span class="code-number">10</span> + d1;
+}
+
+<span class="code-keyword">fn</span> <span class="hl-built_in">kaprekar</span>(n: <span class="code-type">int</span>) -&gt; <span class="code-type">int</span> {
+    <span class="code-keyword">let</span> steps = <span class="code-number">0</span>;
+    <span class="code-keyword">let</span> current = n;
     
     <span class="code-keyword">loop</span> {
-        <span class="code-comment">// The Kaprekar constant</span>
-        <span class="code-keyword">if</span> <span class="code-module">current</span> <span class="code-operator">==</span> <span class="code-number">6174</span> {
-            <span class="code-keyword">return</span> <span class="code-module">steps</span><span class="code-operator">;</span>
+        <span class="code-keyword">if</span> current == <span class="code-number">6174</span> {
+            <span class="code-keyword">return</span> steps;
         }
-        <span class="code-keyword">if</span> <span class="code-module">current</span> <span class="code-operator">==</span> <span class="code-number">0</span> {
-            <span class="code-keyword">return</span> <span class="code-operator">-</span><span class="code-number">1</span><span class="code-operator">;</span>
+        <span class="code-keyword">if</span> current == <span class="code-number">0</span> {
+            <span class="code-keyword">return</span> -<span class="code-number">1</span>;
         }
         
-        <span class="code-keyword">let</span> <span class="code-module">desc</span> <span class="code-operator">=</span> <span class="hl-built_in">sort_desc</span>(<span class="code-module">current</span>)<span class="code-operator">;</span>
-        <span class="code-keyword">let</span> <span class="code-module">asc</span> <span class="code-operator">=</span> <span class="hl-built_in">sort_asc</span>(<span class="code-module">current</span>)<span class="code-operator">;</span>
-        <span class="code-module">current</span> <span class="code-operator">=</span> <span class="code-module">desc</span> <span class="code-operator">-</span> <span class="code-module">asc</span><span class="code-operator">;</span>
-        <span class="code-module">steps</span> <span class="code-operator">=</span> <span class="code-module">steps</span> <span class="code-operator">+</span> <span class="code-number">1</span><span class="code-operator">;</span>
-    }<span class="code-operator">;</span>
-    <span class="code-keyword">return</span> <span class="code-module">steps</span><span class="code-operator">;</span>
+        <span class="code-keyword">let</span> desc = <span class="hl-built_in">sort_desc</span>(current);
+        <span class="code-keyword">let</span> asc = <span class="hl-built_in">sort_asc</span>(current);
+        current = desc - asc;
+        steps = steps + <span class="code-number">1</span>;
+    };
+    <span class="code-keyword">return</span> steps;
+}
+
+<span class="code-keyword">fn</span> <span class="hl-built_in">main</span>() {
+    <span class="code-keyword">let</span> res = <span class="hl-built_in">kaprekar</span>(<span class="code-number">3524</span>);
+    <span class="hl-built_in">print</span>(&quot;Kaprekar steps:&quot;);
+    <span class="hl-built_in">print</span>(res);
+}</code></pre>
+                </div>
+                <h3>Fibonacci Sequence</h3>
+                <div class="doc-code-block">
+                    <pre><code><span class="code-comment">// Elegant recursive Fibonacci calculation</span>
+<span class="code-keyword">fn</span> <span class="hl-built_in">fib</span>(<span class="code-module">n</span>: <span class="code-type">int</span>) <span class="code-operator">-></span> <span class="code-type">int</span> {
+    <span class="code-keyword">if</span> <span class="code-module">n</span> <span class="code-operator"><=</span> <span class="code-number">1</span> {
+        <span class="code-keyword">return</span> <span class="code-module">n</span><span class="code-operator">;</span>
+    } <span class="code-keyword">else</span> {
+        <span class="code-keyword">return</span> <span class="hl-built_in">fib</span>(<span class="code-module">n</span> <span class="code-operator">-</span> <span class="code-number">1</span>) <span class="code-operator">+</span> <span class="hl-built_in">fib</span>(<span class="code-module">n</span> <span class="code-operator">-</span> <span class="code-number">2</span>)<span class="code-operator">;</span>
+    }
+}</code></pre>
+                </div>
+
+                <h3>Advanced Foreach Iteration</h3>
+                <div class="doc-code-block">
+                    <pre><code><span class="code-comment">// Fill an array with a for loop, then accumulate sum with a foreach loop</span>
+<span class="code-keyword">fn</span> <span class="hl-built_in">main</span>() {
+    <span class="code-keyword">let</span> <span class="code-module">data</span> <span class="code-operator">=</span> <span class="hl-built_in">arr</span>(<span class="code-number">5</span>)<span class="code-operator">;</span>
+    <span class="code-keyword">for</span> (<span class="code-keyword">let</span> <span class="code-module">i</span> <span class="code-operator">=</span> <span class="code-number">0</span><span class="code-operator">;</span> <span class="code-module">i</span> <span class="code-operator"><</span> <span class="code-number">5</span><span class="code-operator">;</span> <span class="code-module">i</span> <span class="code-operator">=</span> <span class="code-module">i</span> <span class="code-operator">+</span> <span class="code-number">1</span>) {
+        <span class="code-module">data</span>[<span class="code-module">i</span>] <span class="code-operator">=</span> (<span class="code-module">i</span> <span class="code-operator">+</span> <span class="code-number">1</span>) <span class="code-operator">*</span> <span class="code-number">10</span><span class="code-operator">;</span>
+    }
+
+    <span class="code-keyword">let</span> <span class="code-module">sum</span> <span class="code-operator">=</span> <span class="code-number">0</span><span class="code-operator">;</span>
+    <span class="code-keyword">for</span> <span class="code-module">item</span> <span class="code-keyword">in</span> <span class="code-module">data</span> {
+        <span class="code-module">sum</span> <span class="code-operator">+=</span> <span class="code-module">item</span><span class="code-operator">;</span>
+    }
+    <span class="hl-built_in">print</span>(<span class="code-module">sum</span>)<span class="code-operator">;</span>
 }</code></pre>
                 </div>
             </section>

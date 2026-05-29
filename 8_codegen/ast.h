@@ -53,6 +53,7 @@ typedef enum {
     /*35*/ NODE_FOREACH,
     /*36*/ NODE_PATTERN_CONS,
     /*37*/ NODE_ENUM_PATTERN,
+    /*38*/ NODE_ARRAY_ACCESS,
 } NodeType;
 
 // note: I may use a union in the future to save some memory
@@ -327,6 +328,11 @@ struct ASTNode {
             ASTNode* variant; /* NODE_MEMBER_ACCESS or NODE_IDENTIFIER */
             ASTNode* args;    /* pattern_list */
         } enum_pattern;
+        /* NODE_ARRAY_ACCESS */
+        struct {
+            ASTNode* array;
+            ASTNode* index;
+        } array_access;
     } as;
 };
 

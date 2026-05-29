@@ -1,4 +1,3 @@
-fn print<T>(what: T) { }
 
 // Example: Range Patterns in Match
 fn grade_letter(score: int) {

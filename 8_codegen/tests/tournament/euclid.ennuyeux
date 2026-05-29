@@ -1,0 +1,49 @@
+fn idiv(a: int, b: int) -> int {
+    let q = 0;
+    let r = a;
+    loop {
+        if r < b {
+            return q;
+        }
+        r = r - b;
+        q = q + 1;
+    };
+    return q;
+}
+
+fn ext_euclid(a: int, b: int) -> int {
+    let old_r = a; let r = b;
+    let old_s = 1; let s = 0;
+    let old_t = 0; let t = 1;
+    
+    loop {
+        if r == 0 {
+            break;
+        }
+        let quotient = idiv(old_r, r);
+        
+        let temp_r = old_r - quotient * r;
+        old_r = r;
+        r = temp_r;
+        
+        let temp_s = old_s - quotient * s;
+        old_s = s;
+        s = temp_s;
+        
+        let temp_t = old_t - quotient * t;
+        old_t = t;
+        t = temp_t;
+    };
+    
+    print("GCD:");
+    print(old_r);
+    print("x:");
+    print(old_s);
+    print("y:");
+    print(old_t);
+    return old_r;
+}
+
+fn main() {
+    ext_euclid(240, 46);
+}

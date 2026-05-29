@@ -1,7 +1,3 @@
-fn print<T>(what: T) {
-    // compiler implemented
-}
-
 // Example: Range-based for loops
 fn main() {
     // Exclusive range

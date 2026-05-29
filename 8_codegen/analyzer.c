@@ -310,6 +310,12 @@ SymbolTableEntry* find_symbol(const Scope* current_scope, const char* name) {
     if (strcmp(name, "bool")   == 0) return get_bool_symbol();
     if (strcmp(name, "string") == 0) return get_string_symbol();
     if (strcmp(name, "List")   == 0) return get_list_symbol();
+    if (strcmp(name, "print")  == 0) return get_print_symbol();
+    if (strcmp(name, "input")  == 0) return get_input_symbol();
+    if (strcmp(name, "pixel")  == 0) return get_pixel_symbol();
+    if (strcmp(name, "arr")    == 0) return get_arr_symbol();
+    if (strcmp(name, "arr_get")== 0) return get_arr_get_symbol();
+    if (strcmp(name, "arr_set")== 0) return get_arr_set_symbol();
     const Scope* s = current_scope;
     while (s) {
         SymbolTableEntry* sym = s->symbols;
@@ -1118,7 +1124,12 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
                         ASTNode* iter_type = foreach_iterator->evaluates_to_type;
 
                         // If iterating over a List<T>, the loop variable is of type T
-                        if (node_is_list(iter_type)) {
+                        // If iterating over an arr, the loop variable defaults to int (untyped arrays)
+                        if (iter_type->type == NODE_PLAIN_TYPE && strcmp(iter_type->as.type.name, "arr") == 0) {
+                            // arr is an untyped dynamic array, elements default to int
+                            binded_term->evaluates_to_type = get_int_symbol()->node;
+                        }
+                        else if (node_is_list(iter_type)) {
                             ASTNode* element_type = iter_type->as.type.generic_args;
                             UNAM_ASSERT(element_type, "list must have at least one generig_args");
                             binded_term->evaluates_to_type = element_type;
@@ -1127,7 +1138,7 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
                             binded_term->evaluates_to_type = get_int_symbol()->node;
                         }
                         else {
-                            report_error(foreach_iterator, "foreach can only iterate lists or ranges, got %s", node_repr(iter_type));
+                            report_error(foreach_iterator, "foreach can only iterate lists, arrays, or ranges, got %s", node_repr(iter_type));
                         }
                     } else {
                         report_error(foreach_iterator ? foreach_iterator : node, "trying to iterate void in foreach");
@@ -1393,8 +1404,8 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
                         break;
                     }
 
-                    const char* type_left_name = type_left->as.type.name;
-                    const char* type_right_name = type_right->as.type.name;
+                    const char* type_left_name = (type_left->type == NODE_PLAIN_TYPE) ? type_left->as.type.name : "";
+                    const char* type_right_name = (type_right->type == NODE_PLAIN_TYPE) ? type_right->as.type.name : "";
 
                     if (strcmp(op, "+") == 0) {
                         bool any_is_string = strcmp(type_left_name, "string") == 0 || strcmp(type_right_name, "string") == 0;
@@ -1963,6 +1974,29 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
                 // Nothing to do
                 break;
             };
+            case NODE_ARRAY_ACCESS: {
+                if (phase == PHASE_ENTER) {
+                    da_analyze_frames_append(&stack, (AnalyzeFrame){ node, PHASE_EXIT });
+                    da_analyze_frames_append(&stack, (AnalyzeFrame){ node->as.array_access.index, PHASE_ENTER });
+                    da_analyze_frames_append(&stack, (AnalyzeFrame){ node->as.array_access.array, PHASE_ENTER });
+                } else if (phase == PHASE_EXIT) {
+                    ASTNode* array_type = node->as.array_access.array->evaluates_to_type;
+                    ASTNode* index_type = node->as.array_access.index->evaluates_to_type;
+                    
+                    if (array_type) {
+                        if (strcmp(array_type->as.type.name, "int") != 0 && strcmp(array_type->as.type.name, "arr") != 0) {
+                            report_error(node, "Cannot index a non-array type, got %s", node_repr(array_type));
+                        }
+                    }
+                    if (index_type) {
+                        if (strcmp(index_type->as.type.name, "int") != 0) {
+                            report_error(node, "Array index must be an integer, got %s", node_repr(index_type));
+                        }
+                    }
+                    node->evaluates_to_type = find_symbol(current_scope, "int")->node;
+                }
+                break;
+            };
             case NODE_MEMBER_ACCESS: {
                 ASTNode* object = node->as.member.object;
                 ASTNode* member = node->as.member.member;
@@ -2088,7 +2122,14 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
                         }
                         // The access evaluates to the field's type
                         UNAM_ASSERT(found->type == NODE_STRUCT_FIELD, "matched field should be an struct field");
-                        node->evaluates_to_type = found->as.struct_field.value;
+                        ASTNode* field_type = found->as.struct_field.value;
+                        if (field_type && field_type->type == NODE_PLAIN_TYPE) {
+                            SymbolTableEntry* field_type_sym = find_symbol(current_scope, field_type->as.type.name);
+                            if (field_type_sym && (field_type_sym->node->type == NODE_STRUCT_DECL || field_type_sym->node->type == NODE_ENUM_DECL)) {
+                                field_type = field_type_sym->node;
+                            }
+                        }
+                        node->evaluates_to_type = field_type;
                     } else {
                         UNAM_ASSERT(false, "unreachable");
                     }

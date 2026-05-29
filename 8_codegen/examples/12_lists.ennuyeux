@@ -1,4 +1,3 @@
-fn print<T>(what: T) { }
 
 enum Option<T> {
     Some(T);

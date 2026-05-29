@@ -1,5 +1,3 @@
-fn print<T>(what: T) {}
-
 struct Point {
     x: int;
     y: int;

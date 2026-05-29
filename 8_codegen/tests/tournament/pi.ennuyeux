@@ -1,0 +1,43 @@
+let CONST = 2147483647;
+let MULT  = 16807;
+
+fn next_rand(seed: int) -> int {
+    return (seed * MULT) % CONST;
+}
+
+fn rand_float(seed: int) -> float {
+    return seed / (CONST * 1.0);
+}
+
+fn mc_pi(iterations: int) -> float {
+    let inside = 0;
+    let seed = 123456789;
+
+    let i = 0;
+    loop {
+        if i >= iterations {
+            break;
+        }
+
+        seed = next_rand(seed);
+        let x = rand_float(seed);
+
+        seed = next_rand(seed);
+        let y = rand_float(seed);
+
+        let dist = x * x + y * y;
+
+        if dist <= 1.0 {
+            inside = inside + 1;
+        }
+
+        i = i + 1;
+    };
+
+    return (4.0 * inside) / iterations;
+}
+
+fn main() {
+    let pi_approx = mc_pi(1000000);
+    print("Pi approx: " + pi_approx);
+}

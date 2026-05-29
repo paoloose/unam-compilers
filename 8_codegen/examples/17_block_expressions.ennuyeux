@@ -1,4 +1,3 @@
-fn print<T>(what: T) { }
 
 // Example: Block Expressions (everything is an expression)
 fn main() {

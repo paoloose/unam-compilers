@@ -4,6 +4,7 @@
 #include <string.h>
 #include "ast.h"
 #include "analyzer.h"
+#include "codegen.h"
 
 void yyerror(const char *s);
 int yylex(void);
@@ -313,40 +314,40 @@ expr_no_block:
             $$ = create_leaf_id($1);
         }
     }
-    | IDENT '=' expr {
+    | expr '=' expr {
         $$ = create_node(NODE_ASSIGN);
         $$->as.assign.op = ast_strdup("=");
-        $$->as.assign.target = create_leaf_id($1);
+        $$->as.assign.target = $1;
         $$->as.assign.value = $3;
     }
-    | IDENT ADD_ASSIGN expr {
+    | expr ADD_ASSIGN expr {
         $$ = create_node(NODE_ASSIGN);
         $$->as.assign.op = ast_strdup("+=");
-        $$->as.assign.target = create_leaf_id($1);
+        $$->as.assign.target = $1;
         $$->as.assign.value = $3;
     }
-    | IDENT SUB_ASSIGN expr {
+    | expr SUB_ASSIGN expr {
         $$ = create_node(NODE_ASSIGN);
         $$->as.assign.op = ast_strdup("-=");
-        $$->as.assign.target = create_leaf_id($1);
+        $$->as.assign.target = $1;
         $$->as.assign.value = $3;
     }
-    | IDENT MUL_ASSIGN expr {
+    | expr MUL_ASSIGN expr {
         $$ = create_node(NODE_ASSIGN);
         $$->as.assign.op = ast_strdup("*=");
-        $$->as.assign.target = create_leaf_id($1);
+        $$->as.assign.target = $1;
         $$->as.assign.value = $3;
     }
-    | IDENT DIV_ASSIGN expr {
+    | expr DIV_ASSIGN expr {
         $$ = create_node(NODE_ASSIGN);
         $$->as.assign.op = ast_strdup("/=");
-        $$->as.assign.target = create_leaf_id($1);
+        $$->as.assign.target = $1;
         $$->as.assign.value = $3;
     }
-    | IDENT MOD_ASSIGN expr {
+    | expr MOD_ASSIGN expr {
         $$ = create_node(NODE_ASSIGN);
         $$->as.assign.op = ast_strdup("%=");
-        $$->as.assign.target = create_leaf_id($1);
+        $$->as.assign.target = $1;
         $$->as.assign.value = $3;
     }
     | expr INC {
@@ -386,6 +387,11 @@ expr_no_block:
     | '!' expr { $$ = create_node(NODE_UNARY_OP); $$->as.unary.op = ast_strdup("!"); $$->as.unary.operand = $2; }
     | '~' expr { $$ = create_node(NODE_UNARY_OP); $$->as.unary.op = ast_strdup("~"); $$->as.unary.operand = $2; }
     | '-' expr %prec '!' { $$ = create_node(NODE_UNARY_OP); $$->as.unary.op = ast_strdup("-"); $$->as.unary.operand = $2; }
+    | expr '[' expr ']' {
+        $$ = create_node(NODE_ARRAY_ACCESS);
+        $$->as.array_access.array = $1;
+        $$->as.array_access.index = $3;
+    }
     | '(' expr ')' { $$ = $2; }
     | expr '(' expr_list ')' {
         if ($1->type == NODE_MEMBER_ACCESS && strcmp($1->as.member.op, "::") == 0) {
@@ -429,12 +435,6 @@ expr_no_block:
         $$->as.range.inclusive = 1;
         $$->as.range.start = $1;
         $$->as.range.end = $4;
-    }
-    | expr '[' expr_list ']' {
-        $$ = create_node(NODE_BINARY_OP);
-        $$->as.binop.op = ast_strdup("[]");
-        $$->as.binop.left = $1;
-        $$->as.binop.right = $3;
     }
     ;
     ;
@@ -739,7 +739,7 @@ void yyerror(const char *s) {
     }
 }
 
-#define ALWAYS_PRINT_AST true
+#define ALWAYS_PRINT_AST false
 
 int main(int argc, char** argv) {
     if (argc > 1) {
@@ -763,7 +763,11 @@ int main(int argc, char** argv) {
             printf("\n🪰 AST...\n");
             print_ast(root, 0);
         }
-        if (!success) {
+
+        if (success) {
+            codegen(root, "program.fis");
+        }
+        else {
             return 1;
         }
     }

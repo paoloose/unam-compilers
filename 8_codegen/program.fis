@@ -1,0 +1,16 @@
+GOTO main
+
+LABEL main
+ASSIGN "Enter a number to double it:" __t0
+PRINT __t0
+INPUT __t1
+VAR val
+ASSIGN __t1 val
+MUL val 2 __t3
+VAR result
+ASSIGN __t3 result
+ASSIGN "The result is:" __t4
+PRINT __t4
+PRINT result
+RETURN 0
+

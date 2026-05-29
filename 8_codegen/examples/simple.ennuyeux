@@ -1,5 +1,3 @@
-fn print<T>(w: T) {}
-
 fn work() {
     let f = fn () { 10 };
 

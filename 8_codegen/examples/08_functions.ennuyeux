@@ -1,4 +1,3 @@
-fn print<T>(what: T) { }
 
 // Example: Functions with Early Return
 fn absolute(x: int) {

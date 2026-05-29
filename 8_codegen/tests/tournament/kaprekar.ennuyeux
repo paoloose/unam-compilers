@@ -1,0 +1,90 @@
+
+fn idiv(a: int, b: int) -> int {
+    let q = 0;
+    let r = a;
+    loop {
+        if r < b {
+            return q;
+        }
+        r = r - b;
+        q = q + 1;
+    };
+    return q;
+}
+
+fn get_digit(n: int, pos: int) -> int {
+    let temp = n;
+    let i = 1;
+    loop {
+        if i >= pos {
+            break;
+        }
+        temp = idiv(temp, 10);
+        i = i + 1;
+    };
+    return temp % 10;
+}
+
+fn sort_desc(n: int) -> int {
+    let d1 = get_digit(n, 1);
+    let d2 = get_digit(n, 2);
+    let d3 = get_digit(n, 3);
+    let d4 = get_digit(n, 4);
+    
+    let temp = 0;
+    if d1 > d2 { temp = d1; d1 = d2; d2 = temp; }
+    if d2 > d3 { temp = d2; d2 = d3; d3 = temp; }
+    if d3 > d4 { temp = d3; d3 = d4; d4 = temp; }
+    
+    if d1 > d2 { temp = d1; d1 = d2; d2 = temp; }
+    if d2 > d3 { temp = d2; d2 = d3; d3 = temp; }
+    
+    if d1 > d2 { temp = d1; d1 = d2; d2 = temp; }
+    
+    return d4 * 1000 + d3 * 100 + d2 * 10 + d1;
+}
+
+fn sort_asc(n: int) -> int {
+    let d1 = get_digit(n, 1);
+    let d2 = get_digit(n, 2);
+    let d3 = get_digit(n, 3);
+    let d4 = get_digit(n, 4);
+    
+    let temp = 0;
+    if d1 < d2 { temp = d1; d1 = d2; d2 = temp; }
+    if d2 < d3 { temp = d2; d2 = d3; d3 = temp; }
+    if d3 < d4 { temp = d3; d3 = d4; d4 = temp; }
+    
+    if d1 < d2 { temp = d1; d1 = d2; d2 = temp; }
+    if d2 < d3 { temp = d2; d2 = d3; d3 = temp; }
+    
+    if d1 < d2 { temp = d1; d1 = d2; d2 = temp; }
+    
+    return d4 * 1000 + d3 * 100 + d2 * 10 + d1;
+}
+
+fn kaprekar(n: int) -> int {
+    let steps = 0;
+    let current = n;
+    
+    loop {
+        if current == 6174 {
+            return steps;
+        }
+        if current == 0 {
+            return -1;
+        }
+        
+        let desc = sort_desc(current);
+        let asc = sort_asc(current);
+        current = desc - asc;
+        steps = steps + 1;
+    };
+    return steps;
+}
+
+fn main() {
+    let res = kaprekar(3524);
+    print("Kaprekar steps:");
+    print(res);
+}

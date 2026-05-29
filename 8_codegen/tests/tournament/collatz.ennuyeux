@@ -1,6 +1,20 @@
+
+
 fn collatz(num: int) -> bool {
     let n: int = num;
 
+    loop {
+        if n % 2 == 0 {
+            n = n / 2;
+        } else {
+            n = n * 3 + 1;
+        }
+
+        if n == 1 {
+            print("success :3");
+            return true;
+        }
+    };
     return false;
 }
 

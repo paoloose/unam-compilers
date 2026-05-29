@@ -1,0 +1,38 @@
+
+fn is_prime(n: int) -> bool {
+    if n <= 1 {
+        return false;
+    }
+    let i = 2;
+    loop {
+        if i * i > n {
+            return true;
+        }
+        if n % i == 0 {
+            return false;
+        }
+        i = i + 1;
+    };
+    return false;
+}
+
+fn nth_prime(n: int) -> int {
+    let count = 0;
+    let num = 1;
+    loop {
+        num = num + 1;
+        if is_prime(num) {
+            count = count + 1;
+        }
+        if count == n {
+            return num;
+        }
+    };
+    return 0;
+}
+
+fn main() {
+    let result = nth_prime(10);
+    print("10th prime:");
+    print(result);
+}

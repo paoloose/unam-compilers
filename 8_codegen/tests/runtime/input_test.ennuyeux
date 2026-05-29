@@ -1,0 +1,7 @@
+fn main() {
+    print("Enter a number to double it:");
+    let val = input();
+    let result = val * 2;
+    print("The result is:");
+    print(result);
+}

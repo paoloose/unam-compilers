@@ -1,0 +1,4 @@
+CONST = 2147483647;
+fn main() {
+    print(CONST);
+}

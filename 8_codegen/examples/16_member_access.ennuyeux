@@ -1,4 +1,3 @@
-fn print<T>(what: T) { }
 
 // Example: Member Access (dot and :: operators)
 struct Vec2 {

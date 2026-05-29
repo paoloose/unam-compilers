@@ -1,0 +1,28 @@
+struct Position {
+    x: int;
+    y: int;
+}
+
+struct Player {
+    pos: Position;
+    health: int;
+    score: int;
+}
+
+fn main() {
+    let p = Player { 
+        pos: Position { x: 10, y: 20 }, 
+        health: 100, 
+        score: 0 
+    };
+
+    print(p.pos.x);
+    print(p.pos.y);
+    print(p.health);
+
+    p.health = p.health - 15;
+    p.pos.x += 5;
+
+    print(p.health);
+    print(p.pos.x);
+}
