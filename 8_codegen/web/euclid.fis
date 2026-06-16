@@ -1,0 +1,99 @@
+GOTO main
+
+LABEL idiv
+PARAM_GET b
+PARAM_GET a
+ASSIGN 0 __t0
+VAR q
+ASSIGN __t0 q
+VAR r
+ASSIGN a r
+GOTO idiv_loop_body_0
+LABEL idiv_loop_body_0
+LT r b __t1
+IF __t1 GOTO idiv_if_then_s_0
+GOTO idiv_if_end_s_0
+LABEL idiv_loop_end_0
+RETURN q
+LABEL idiv_if_then_s_0
+RETURN q
+LABEL idiv_if_end_s_0
+SUB r b __t2
+ASSIGN __t2 r
+ASSIGN 1 __t3
+ADD q __t3 __t4
+ASSIGN __t4 q
+GOTO idiv_loop_body_0
+
+LABEL ext_euclid
+PARAM_GET b
+PARAM_GET a
+VAR old_r
+ASSIGN a old_r
+VAR r
+ASSIGN b r
+ASSIGN 1 __t0
+VAR old_s
+ASSIGN __t0 old_s
+ASSIGN 0 __t1
+VAR s
+ASSIGN __t1 s
+ASSIGN 0 __t2
+VAR old_t
+ASSIGN __t2 old_t
+ASSIGN 1 __t3
+VAR t
+ASSIGN __t3 t
+GOTO ext_euclid_loop_body_1
+LABEL ext_euclid_loop_body_1
+ASSIGN 0 __t4
+EQ r __t4 __t5
+IF __t5 GOTO ext_euclid_if_then_s_1
+GOTO ext_euclid_if_end_s_1
+LABEL ext_euclid_loop_end_1
+ASSIGN "GCD:" __t13
+PRINT __t13
+PRINT old_r
+ASSIGN "x:" __t14
+PRINT __t14
+PRINT old_s
+ASSIGN "y:" __t15
+PRINT __t15
+PRINT old_t
+RETURN old_r
+LABEL ext_euclid_if_then_s_1
+GOTO ext_euclid_loop_end_1
+LABEL ext_euclid_if_end_s_1
+PARAM old_r
+PARAM r
+GOSUB idiv __t6
+VAR quotient
+ASSIGN __t6 quotient
+MUL quotient r __t7
+SUB old_r __t7 __t8
+VAR temp_r
+ASSIGN __t8 temp_r
+ASSIGN r old_r
+ASSIGN temp_r r
+MUL quotient s __t9
+SUB old_s __t9 __t10
+VAR temp_s
+ASSIGN __t10 temp_s
+ASSIGN s old_s
+ASSIGN temp_s s
+MUL quotient t __t11
+SUB old_t __t11 __t12
+VAR temp_t
+ASSIGN __t12 temp_t
+ASSIGN t old_t
+ASSIGN temp_t t
+GOTO ext_euclid_loop_body_1
+
+LABEL main
+ASSIGN 240 __t0
+ASSIGN 46 __t1
+PARAM __t0
+PARAM __t1
+GOSUB ext_euclid __t2
+RETURN 0
+

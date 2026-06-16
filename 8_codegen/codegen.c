@@ -894,6 +894,10 @@ static void emit_fis25(MIRModule* mod, const char* filename) {
 void codegen(const ASTNode* program, const char* filename) {
     if (program->type != NODE_PROGRAM) return;
 
+    lambda_counter = 0;
+    lifted_lambdas_head = NULL;
+    lifted_lambdas_tail = NULL;
+
     ASTNode* prog_copy = (ASTNode*)program; 
     lift_lambdas(prog_copy);
 

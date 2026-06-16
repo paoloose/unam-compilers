@@ -1,0 +1,299 @@
+GOTO main
+
+LABEL idiv
+PARAM_GET b
+PARAM_GET a
+ASSIGN 0 __t0
+VAR q
+ASSIGN __t0 q
+VAR r
+ASSIGN a r
+GOTO idiv_loop_body_0
+LABEL idiv_loop_body_0
+LT r b __t1
+IF __t1 GOTO idiv_if_then_s_0
+GOTO idiv_if_end_s_0
+LABEL idiv_loop_end_0
+RETURN q
+LABEL idiv_if_then_s_0
+RETURN q
+LABEL idiv_if_end_s_0
+SUB r b __t2
+ASSIGN __t2 r
+ASSIGN 1 __t3
+ADD q __t3 __t4
+ASSIGN __t4 q
+GOTO idiv_loop_body_0
+
+LABEL get_digit
+PARAM_GET pos
+PARAM_GET n
+VAR temp
+ASSIGN n temp
+ASSIGN 1 __t0
+VAR i
+ASSIGN __t0 i
+GOTO get_digit_loop_body_1
+LABEL get_digit_loop_body_1
+GTE i pos __t1
+IF __t1 GOTO get_digit_if_then_s_1
+GOTO get_digit_if_end_s_1
+LABEL get_digit_loop_end_1
+ASSIGN 10 __t6
+MOD temp __t6 __t7
+RETURN __t7
+LABEL get_digit_if_then_s_1
+GOTO get_digit_loop_end_1
+LABEL get_digit_if_end_s_1
+ASSIGN 10 __t2
+PARAM temp
+PARAM __t2
+GOSUB idiv __t3
+ASSIGN __t3 temp
+ASSIGN 1 __t4
+ADD i __t4 __t5
+ASSIGN __t5 i
+GOTO get_digit_loop_body_1
+
+LABEL sort_desc
+PARAM_GET n
+ASSIGN 1 __t0
+PARAM n
+PARAM __t0
+GOSUB get_digit __t1
+VAR d1
+ASSIGN __t1 d1
+ASSIGN 2 __t2
+PARAM n
+PARAM __t2
+GOSUB get_digit __t3
+VAR d2
+ASSIGN __t3 d2
+ASSIGN 3 __t4
+PARAM n
+PARAM __t4
+GOSUB get_digit __t5
+VAR d3
+ASSIGN __t5 d3
+ASSIGN 4 __t6
+PARAM n
+PARAM __t6
+GOSUB get_digit __t7
+VAR d4
+ASSIGN __t7 d4
+ASSIGN 0 __t8
+VAR temp
+ASSIGN __t8 temp
+GT d1 d2 __t9
+IF __t9 GOTO sort_desc_if_then_s_2
+GOTO sort_desc_if_end_s_2
+LABEL sort_desc_if_then_s_2
+ASSIGN d1 temp
+ASSIGN d2 d1
+ASSIGN temp d2
+GOTO sort_desc_if_end_s_2
+LABEL sort_desc_if_end_s_2
+GT d2 d3 __t10
+IF __t10 GOTO sort_desc_if_then_s_3
+GOTO sort_desc_if_end_s_3
+LABEL sort_desc_if_then_s_3
+ASSIGN d2 temp
+ASSIGN d3 d2
+ASSIGN temp d3
+GOTO sort_desc_if_end_s_3
+LABEL sort_desc_if_end_s_3
+GT d3 d4 __t11
+IF __t11 GOTO sort_desc_if_then_s_4
+GOTO sort_desc_if_end_s_4
+LABEL sort_desc_if_then_s_4
+ASSIGN d3 temp
+ASSIGN d4 d3
+ASSIGN temp d4
+GOTO sort_desc_if_end_s_4
+LABEL sort_desc_if_end_s_4
+GT d1 d2 __t12
+IF __t12 GOTO sort_desc_if_then_s_5
+GOTO sort_desc_if_end_s_5
+LABEL sort_desc_if_then_s_5
+ASSIGN d1 temp
+ASSIGN d2 d1
+ASSIGN temp d2
+GOTO sort_desc_if_end_s_5
+LABEL sort_desc_if_end_s_5
+GT d2 d3 __t13
+IF __t13 GOTO sort_desc_if_then_s_6
+GOTO sort_desc_if_end_s_6
+LABEL sort_desc_if_then_s_6
+ASSIGN d2 temp
+ASSIGN d3 d2
+ASSIGN temp d3
+GOTO sort_desc_if_end_s_6
+LABEL sort_desc_if_end_s_6
+GT d1 d2 __t14
+IF __t14 GOTO sort_desc_if_then_s_7
+GOTO sort_desc_if_end_s_7
+LABEL sort_desc_if_then_s_7
+ASSIGN d1 temp
+ASSIGN d2 d1
+ASSIGN temp d2
+GOTO sort_desc_if_end_s_7
+LABEL sort_desc_if_end_s_7
+ASSIGN 1000 __t15
+MUL d4 __t15 __t16
+ASSIGN 100 __t17
+MUL d3 __t17 __t18
+ADD __t16 __t18 __t19
+ASSIGN 10 __t20
+MUL d2 __t20 __t21
+ADD __t19 __t21 __t22
+ADD __t22 d1 __t23
+RETURN __t23
+
+LABEL sort_asc
+PARAM_GET n
+ASSIGN 1 __t0
+PARAM n
+PARAM __t0
+GOSUB get_digit __t1
+VAR d1
+ASSIGN __t1 d1
+ASSIGN 2 __t2
+PARAM n
+PARAM __t2
+GOSUB get_digit __t3
+VAR d2
+ASSIGN __t3 d2
+ASSIGN 3 __t4
+PARAM n
+PARAM __t4
+GOSUB get_digit __t5
+VAR d3
+ASSIGN __t5 d3
+ASSIGN 4 __t6
+PARAM n
+PARAM __t6
+GOSUB get_digit __t7
+VAR d4
+ASSIGN __t7 d4
+ASSIGN 0 __t8
+VAR temp
+ASSIGN __t8 temp
+LT d1 d2 __t9
+IF __t9 GOTO sort_asc_if_then_s_8
+GOTO sort_asc_if_end_s_8
+LABEL sort_asc_if_then_s_8
+ASSIGN d1 temp
+ASSIGN d2 d1
+ASSIGN temp d2
+GOTO sort_asc_if_end_s_8
+LABEL sort_asc_if_end_s_8
+LT d2 d3 __t10
+IF __t10 GOTO sort_asc_if_then_s_9
+GOTO sort_asc_if_end_s_9
+LABEL sort_asc_if_then_s_9
+ASSIGN d2 temp
+ASSIGN d3 d2
+ASSIGN temp d3
+GOTO sort_asc_if_end_s_9
+LABEL sort_asc_if_end_s_9
+LT d3 d4 __t11
+IF __t11 GOTO sort_asc_if_then_s_10
+GOTO sort_asc_if_end_s_10
+LABEL sort_asc_if_then_s_10
+ASSIGN d3 temp
+ASSIGN d4 d3
+ASSIGN temp d4
+GOTO sort_asc_if_end_s_10
+LABEL sort_asc_if_end_s_10
+LT d1 d2 __t12
+IF __t12 GOTO sort_asc_if_then_s_11
+GOTO sort_asc_if_end_s_11
+LABEL sort_asc_if_then_s_11
+ASSIGN d1 temp
+ASSIGN d2 d1
+ASSIGN temp d2
+GOTO sort_asc_if_end_s_11
+LABEL sort_asc_if_end_s_11
+LT d2 d3 __t13
+IF __t13 GOTO sort_asc_if_then_s_12
+GOTO sort_asc_if_end_s_12
+LABEL sort_asc_if_then_s_12
+ASSIGN d2 temp
+ASSIGN d3 d2
+ASSIGN temp d3
+GOTO sort_asc_if_end_s_12
+LABEL sort_asc_if_end_s_12
+LT d1 d2 __t14
+IF __t14 GOTO sort_asc_if_then_s_13
+GOTO sort_asc_if_end_s_13
+LABEL sort_asc_if_then_s_13
+ASSIGN d1 temp
+ASSIGN d2 d1
+ASSIGN temp d2
+GOTO sort_asc_if_end_s_13
+LABEL sort_asc_if_end_s_13
+ASSIGN 1000 __t15
+MUL d4 __t15 __t16
+ASSIGN 100 __t17
+MUL d3 __t17 __t18
+ADD __t16 __t18 __t19
+ASSIGN 10 __t20
+MUL d2 __t20 __t21
+ADD __t19 __t21 __t22
+ADD __t22 d1 __t23
+RETURN __t23
+
+LABEL kaprekar
+PARAM_GET n
+ASSIGN 0 __t0
+VAR steps
+ASSIGN __t0 steps
+VAR current
+ASSIGN n current
+GOTO kaprekar_loop_body_2
+LABEL kaprekar_loop_body_2
+ASSIGN 6174 __t1
+EQ current __t1 __t2
+IF __t2 GOTO kaprekar_if_then_s_14
+GOTO kaprekar_if_end_s_14
+LABEL kaprekar_loop_end_2
+RETURN steps
+LABEL kaprekar_if_then_s_14
+RETURN steps
+LABEL kaprekar_if_end_s_14
+ASSIGN 0 __t3
+EQ current __t3 __t4
+IF __t4 GOTO kaprekar_if_then_s_15
+GOTO kaprekar_if_end_s_15
+LABEL kaprekar_if_then_s_15
+ASSIGN 1 __t5
+ASSIGN 0 __t6
+SUB __t6 __t5 __t7
+RETURN __t7
+LABEL kaprekar_if_end_s_15
+PARAM current
+GOSUB sort_desc __t8
+VAR desc
+ASSIGN __t8 desc
+PARAM current
+GOSUB sort_asc __t9
+VAR asc
+ASSIGN __t9 asc
+SUB desc asc __t10
+ASSIGN __t10 current
+ASSIGN 1 __t11
+ADD steps __t11 __t12
+ASSIGN __t12 steps
+GOTO kaprekar_loop_body_2
+
+LABEL main
+ASSIGN 3524 __t0
+PARAM __t0
+GOSUB kaprekar __t1
+VAR res
+ASSIGN __t1 res
+ASSIGN "Kaprekar steps:" __t2
+PRINT __t2
+PRINT res
+RETURN 0
+

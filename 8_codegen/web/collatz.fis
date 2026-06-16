@@ -1,0 +1,53 @@
+GOTO main
+
+LABEL collatz
+PARAM_GET num
+VAR n
+ASSIGN num n
+GOTO collatz_loop_body_0
+LABEL collatz_loop_body_0
+ASSIGN 2 __t0
+MOD n __t0 __t1
+ASSIGN 0 __t2
+EQ __t1 __t2 __t3
+IF __t3 GOTO collatz_if_then_s_0
+GOTO collatz_if_else_s_0
+LABEL collatz_loop_end_0
+ASSIGN false __t16
+RETURN __t16
+LABEL collatz_if_then_s_0
+ASSIGN 2 __t4
+DIV n __t4 __t5
+ASSIGN __t5 n
+GOTO collatz_if_end_s_0
+LABEL collatz_if_else_s_0
+ASSIGN 3 __t6
+MUL n __t6 __t7
+ASSIGN 1 __t8
+ADD __t7 __t8 __t9
+ASSIGN __t9 n
+GOTO collatz_if_end_s_0
+LABEL collatz_if_end_s_0
+ASSIGN 1 __t10
+EQ n __t10 __t11
+IF __t11 GOTO collatz_if_then_e_0
+GOTO collatz_if_else_e_0
+LABEL collatz_if_then_e_0
+ASSIGN "success :3" __t13
+PRINT __t13
+ASSIGN true __t14
+ASSIGN 0 __t12
+RETURN __t14
+LABEL collatz_if_else_e_0
+ASSIGN 0 __t15
+ASSIGN __t15 __t12
+GOTO collatz_if_end_e_0
+LABEL collatz_if_end_e_0
+GOTO collatz_loop_body_0
+
+LABEL main
+ASSIGN 69 __t0
+PARAM __t0
+GOSUB collatz __t1
+RETURN 0
+

@@ -1,0 +1,90 @@
+ASSIGN 2147483647 __t0
+VAR CONST
+ASSIGN __t0 CONST
+ASSIGN 16807 __t1
+VAR MULT
+ASSIGN __t1 MULT
+GOTO main
+
+LABEL next_rand
+PARAM_GET seed
+MUL seed MULT __t0
+MOD __t0 CONST __t1
+RETURN __t1
+
+LABEL rand_float
+PARAM_GET seed
+ASSIGN 1.000000 __t0
+MUL CONST __t0 __t1
+DIV seed __t1 __t2
+RETURN __t2
+
+LABEL mc_pi
+PARAM_GET iterations
+ASSIGN 0 __t0
+VAR inside
+ASSIGN __t0 inside
+ASSIGN 123456789 __t1
+VAR seed
+ASSIGN __t1 seed
+ASSIGN 0 __t2
+VAR i
+ASSIGN __t2 i
+GOTO mc_pi_loop_body_0
+LABEL mc_pi_loop_body_0
+GTE i iterations __t3
+IF __t3 GOTO mc_pi_if_then_s_0
+GOTO mc_pi_if_end_s_0
+LABEL mc_pi_loop_end_0
+ASSIGN 4.000000 __t17
+MUL __t17 inside __t18
+DIV __t18 iterations __t19
+RETURN __t19
+LABEL mc_pi_if_then_s_0
+GOTO mc_pi_loop_end_0
+LABEL mc_pi_if_end_s_0
+PARAM seed
+GOSUB next_rand __t4
+ASSIGN __t4 seed
+PARAM seed
+GOSUB rand_float __t5
+VAR x
+ASSIGN __t5 x
+PARAM seed
+GOSUB next_rand __t6
+ASSIGN __t6 seed
+PARAM seed
+GOSUB rand_float __t7
+VAR y
+ASSIGN __t7 y
+MUL x x __t8
+MUL y y __t9
+ADD __t8 __t9 __t10
+VAR dist
+ASSIGN __t10 dist
+ASSIGN 1.000000 __t11
+LTE dist __t11 __t12
+IF __t12 GOTO mc_pi_if_then_s_1
+GOTO mc_pi_if_end_s_1
+LABEL mc_pi_if_then_s_1
+ASSIGN 1 __t13
+ADD inside __t13 __t14
+ASSIGN __t14 inside
+GOTO mc_pi_if_end_s_1
+LABEL mc_pi_if_end_s_1
+ASSIGN 1 __t15
+ADD i __t15 __t16
+ASSIGN __t16 i
+GOTO mc_pi_loop_body_0
+
+LABEL main
+ASSIGN 1000000 __t0
+PARAM __t0
+GOSUB mc_pi __t1
+VAR pi_approx
+ASSIGN __t1 pi_approx
+ASSIGN "Pi approx: " __t2
+ADD __t2 pi_approx __t3
+PRINT __t3
+RETURN 0
+

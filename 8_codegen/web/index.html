@@ -3,116 +3,418 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ennuyeux Language Documentation</title>
+    <title>Ennuyeux - Language Documentation</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Lexend:wght@400;700&family=Outfit&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="main.css">
     <style>
-        .doc-section {
-            background-color: var(--color-underwater-blue);
-            padding: var(--gap-4);
+        .hero-button {
+            display: inline-block;
+            margin-top: var(--sp-4);
+            padding: var(--sp-2) var(--sp-4);
+            background: var(--signal);
+            color: var(--bg);
+            font-family: var(--font-display);
+            font-size: 16px;
+            font-weight: 700;
+            text-decoration: none;
+            border-radius: 6px;
+            transition: opacity 0.2s;
+        }
+        .hero-button:hover {
+            opacity: 0.9;
+            text-decoration: none;
+        }
+
+        .interpreter-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(12, 15, 21, 0.95);
+            z-index: 1000;
+            overflow-y: auto;
+        }
+        .interpreter-modal.active {
+            display: block;
+        }
+        .interpreter-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: var(--sp-6) var(--sp-3);
+        }
+        .interpreter-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: var(--sp-4);
+        }
+        .interpreter-title {
+            font-family: var(--font-display);
+            font-size: 32px;
+            font-weight: 700;
+            color: var(--text);
+        }
+        .interpreter-close {
+            background: var(--bg-surface);
+            border: 1px solid var(--border);
+            color: var(--text);
+            padding: var(--sp-1) var(--sp-2);
+            border-radius: 4px;
+            cursor: pointer;
+            font-family: var(--font-display);
+        }
+        .interpreter-close:hover {
+            background: var(--bg-elevated);
+        }
+        .interpreter-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: var(--sp-4);
+        }
+        @media (max-width: 960px) {
+            .interpreter-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+        .interpreter-panel {
+            background: var(--bg-surface);
+            border: 1px solid var(--border);
             border-radius: 8px;
-            margin-bottom: var(--gap-4);
+            padding: var(--sp-3);
         }
-        .doc-section h2 {
-            margin-top: 0;
-            color: var(--color-faff-pink);
-            border-bottom: 2px solid rgba(255, 255, 255, 0.1);
-            padding-bottom: var(--gap-1);
+        .interpreter-panel h3 {
+            font-family: var(--font-display);
+            font-size: 18px;
+            margin-bottom: var(--sp-2);
+            color: var(--text);
         }
-        .doc-section h3 {
-            color: var(--color-text-main);
-            margin-top: var(--gap-3);
+        .file-input-wrapper {
+            margin-bottom: var(--sp-3);
         }
-        .doc-code-block {
-            background: var(--color-lukewarm-charcoal);
-            padding: var(--gap-2);
-            border-radius: 8px;
-            margin: var(--gap-2) 0;
-            overflow-x: auto;
+        .file-input-wrapper input[type="file"] {
+            display: block;
+            width: 100%;
+            padding: var(--sp-2);
+            background: var(--bg-elevated);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            color: var(--text);
+            font-family: var(--font-body);
         }
-        .doc-list {
-            list-style: none;
-            padding: 0;
+        .example-selector {
+            margin-bottom: var(--sp-3);
         }
-        .doc-list li {
-            margin-bottom: var(--gap-1);
-            padding-left: var(--gap-2);
-            border-left: 2px solid var(--color-faff-pink);
+        .example-selector label {
+            display: block;
+            margin-bottom: var(--sp-1);
+            color: var(--text-muted);
+            font-size: 14px;
+        }
+        .example-selector select {
+            width: 100%;
+            padding: var(--sp-2);
+            background: var(--bg-elevated);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            color: var(--text);
+            font-family: var(--font-body);
+            font-size: 14px;
+            cursor: pointer;
+        }
+        .example-selector select:hover {
+            border-color: var(--signal);
+        }
+        .bytecode-input-wrapper {
+            margin-bottom: var(--sp-3);
+        }
+        .bytecode-input-wrapper textarea {
+            width: 100%;
+            min-height: 450px;
+            padding: var(--sp-2);
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            color: var(--text);
+            font-family: var(--font-code);
+            font-size: 15px;
+            line-height: 1.6;
+            resize: vertical;
+        }
+        .bytecode-input-wrapper textarea:focus {
+            outline: none;
+            border-color: var(--signal);
+        }
+
+        * {
+            scrollbar-width: thin;
+            scrollbar-color: var(--border) var(--bg);
+        }
+        *::-webkit-scrollbar {
+            width: 10px;
+            height: 10px;
+        }
+        *::-webkit-scrollbar-track {
+            background: var(--bg);
+        }
+        *::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 5px;
+            border: 2px solid var(--bg);
+        }
+        *::-webkit-scrollbar-thumb:hover {
+            background: var(--signal);
+        }
+        .run-button {
+            width: 100%;
+            padding: var(--sp-2);
+            background: var(--green);
+            color: var(--bg);
+            border: none;
+            border-radius: 4px;
+            font-family: var(--font-display);
+            font-size: 16px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+        .run-button:hover:not(:disabled) {
+            opacity: 0.9;
+        }
+        .run-button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .output-console {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            padding: var(--sp-2);
+            min-height: 300px;
+            max-height: 400px;
+            overflow-y: auto;
+            font-family: var(--font-code);
+            font-size: 14px;
+            line-height: 1.5;
+            color: var(--text);
+        }
+        .output-line {
+            margin: 0;
+            white-space: pre-wrap;
+        }
+        .output-line.error {
+            color: var(--red);
+        }
+        .output-line.system {
+            color: var(--text-muted);
+            font-style: italic;
+        }
+        .pixel-canvas-wrapper {
+            margin-top: var(--sp-3);
+        }
+        .pixel-canvas {
+            width: 100%;
+            max-width: 512px;
+            aspect-ratio: 1;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+        }
+        .stats-panel {
+            margin-top: var(--sp-3);
+            padding: var(--sp-2);
+            background: var(--bg-elevated);
+            border-radius: 4px;
+            font-family: var(--font-code);
+            font-size: 13px;
+        }
+        .stats-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: var(--sp-1);
+        }
+        .stats-label {
+            color: var(--text-muted);
+        }
+        .stats-value {
+            color: var(--text);
+            font-weight: 700;
+        }
+        .input-prompt {
+            display: none;
+            margin-top: var(--sp-2);
+        }
+        .input-prompt.active {
+            display: flex;
+            gap: var(--sp-1);
+        }
+        .input-prompt input {
+            flex: 1;
+            padding: var(--sp-1) var(--sp-2);
+            background: var(--bg-elevated);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            color: var(--text);
+            font-family: var(--font-code);
+        }
+        .input-prompt button {
+            padding: var(--sp-1) var(--sp-2);
+            background: var(--signal);
+            color: var(--bg);
+            border: none;
+            border-radius: 4px;
+            font-family: var(--font-display);
+            font-weight: 700;
+            cursor: pointer;
         }
     </style>
 </head>
 <body>
-    <header class="page-header">
-        <nav class="navbar">
-            <div class="content">
-                <a href="#" class="logo">
-                    <img src="logo.png" alt="Ennuyeux Logo">
-                    Ennuyeux
-                </a>
-                <div>
-                    <a href="https://github.com/paoloose/unam-compilers.git" target="_blank" rel="noopener">GitHub Repository</a>
+    <nav class="doc-nav">
+        <div class="doc-nav__inner">
+            <a href="#" class="doc-nav__logo">
+                <img src="logo.png" alt=""> ennuyeux
+            </a>
+            <div class="doc-nav__links">
+                <a href="https://github.com/paoloose/unam-compilers/tree/main/8_codegen" target="_blank" rel="noopener">Source</a>
+            </div>
+        </div>
+    </nav>
+
+    <header class="doc-hero">
+        <div class="doc-hero__inner">
+            <p class="doc-hero__eyebrow">UNAM Compilers - Capstone Project</p>
+            <h1 class="doc-hero__title">ennuyeux</h1>
+            <p class="doc-hero__subtitle">A boring but ergonomic programming language. Statically typed, expression-based, compiled to a custom virtual machine.</p>
+            
+            <div class="pipeline">
+                <div class="pipeline-stage">
+                    <span class="pipeline-stage__label">source</span>
+                    <span class="pipeline-stage__ext">.ennuyeux</span>
+                </div>
+                <span class="pipeline-arrow" aria-hidden="true">&#9654;</span>
+                <div class="pipeline-stage">
+                    <span class="pipeline-stage__label">lexer</span>
+                </div>
+                <span class="pipeline-arrow" aria-hidden="true">&#9654;</span>
+                <div class="pipeline-stage pipeline-stage--accent">
+                    <span class="pipeline-stage__label">parser</span>
+                    <span class="pipeline-stage__ext">LALR</span>
+                </div>
+                <span class="pipeline-arrow" aria-hidden="true">&#9654;</span>
+                <div class="pipeline-stage">
+                    <span class="pipeline-stage__label">semantic</span>
+                </div>
+                <span class="pipeline-arrow" aria-hidden="true">&#9654;</span>
+                <div class="pipeline-stage">
+                    <span class="pipeline-stage__label">IR</span>
+                </div>
+                <span class="pipeline-arrow" aria-hidden="true">&#9654;</span>
+                <div class="pipeline-stage pipeline-stage--vm">
+                    <span class="pipeline-stage__label">FIS25</span>
+                    <span class="pipeline-stage__ext">bytecode</span>
                 </div>
             </div>
-        </nav>
-        
-        <div class="hero">
-            <div class="content">
-                <div class="text" style="text-align: center; max-width: 800px; margin: 0 auto;">
-                    <h1 style="font-weight: 800; margin-bottom: 24px;">Ennuyeux Language Documentation</h1>
-                    <p class="hero-subtitle">Ennuyeux stands for boring - a boring but ergonomic programming language. A robust, statically-typed, systems-level compiler project.</p>
-                </div>
-            </div>
-            <svg class="home-waves" viewBox="0 0 1200 100" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M0,40 C300,100 900,0 1200,60 L1200,100 L0,100 Z" fill="#292d3e"></path>
-            </svg>
+
+            <button class="hero-button" onclick="openInterpreter()">Try the VM</button>
         </div>
     </header>
 
-    <main style="background-color: var(--color-lukewarm-charcoal); padding-top: var(--gap-4); padding-bottom: var(--gap-6);">
-        <div class="content">
+    <div class="doc-layout">
+        <aside class="doc-toc">
+            <h4>Contents</h4>
+            <ol>
+                <li><a href="#paradigm">Paradigm & Purpose</a></li>
+                <li><a href="#types">Data Types & Inference</a></li>
+                <li><a href="#syntax">Syntax & Reserved Words</a></li>
+                <li><a href="#functions">Functions & Return Inference</a></li>
+                <li><a href="#control-flow">Control Flow</a></li>
+                <li><a href="#operators">Operators</a></li>
+                <li><a href="#data-structures">Structs & Arrays</a></li>
+                <li><a href="#builtins">Built-in Functions</a></li>
+                <li><a href="#examples">Code Examples</a></li>
+            </ol>
+        </aside>
+
+        <main class="doc-content">
             
-            <section class="doc-section">
-                <h2>1. Paradigm, Design & Purpose</h2>
-                <p><strong>Ennuyeux</strong> (which translates to "boring" in French) embraces the philosophy of being a boring but highly ergonomic programming language. It is a statically-typed, expression-based, compiled systems language. It is fundamentally designed for academic rigor, speed, and strict memory semantics, heavily adopting its syntax and design philosophy from modern languages like Rust while maintaining the low-level simplicity of C.</p>
-                <p>The primary <strong>purpose</strong> of Ennuyeux is to provide a robust compiler pipeline featuring Lexing, Parsing (LALR), Semantic Analysis (with deep type inference and checking), Mid-Level IR lowering (with optimizations like Constant Folding and Dead Code Elimination), and final bytecode generation targeting a custom <code>FIS25</code> VM.</p>
-                <p>It acts as the capstone artifact for the UNAM Compilers Semester Project, demonstrating end-to-end language design, compiler implementation, and custom virtual machine execution with native graphics rendering capabilities.</p>
+            <section class="doc-section" id="paradigm">
+                <header class="doc-section__header">
+                    <span class="doc-section__number">01</span>
+                    <h2 class="doc-section__title">Paradigm & Purpose</h2>
+                </header>
+                <div class="doc-section__content">
+                    <p><strong>Ennuyeux</strong> (which translates to "boring" in French) embraces the philosophy of being a boring but highly ergonomic programming language. It is a statically-typed, expression-based, compiled systems language. It is fundamentally designed for academic rigor, speed, and strict memory semantics, heavily adopting its syntax and design philosophy from modern languages like Rust while maintaining the low-level simplicity of C.</p>
+                    <p>The primary <strong>purpose</strong> of Ennuyeux is to provide a robust compiler pipeline featuring Lexing, Parsing (LALR), Semantic Analysis (with deep type inference and checking), Mid-Level IR lowering (with optimizations like Constant Folding and Dead Code Elimination), and final bytecode generation targeting a custom <code>FIS25</code> VM.</p>
+                    <p>It acts as the capstone artifact for the UNAM Compilers Semester Project, demonstrating end-to-end language design, compiler implementation, and custom virtual machine execution with native graphics rendering capabilities.</p>
+                </div>
             </section>
 
-            <section class="doc-section">
-                <h2>2. Accepted Data Types & Type Inference</h2>
-                <p>Ennuyeux enforces strict static typing. Variables are typed at compile-time, ensuring memory safety and deterministic execution. The supported primitive data types include:</p>
-                <ul class="doc-list">
-                    <li><code>int</code>: 32-bit signed integers.</li>
-                    <li><code>float</code>: 64-bit floating point numbers.</li>
-                    <li><code>bool</code>: Boolean values representing <code>true</code> or <code>false</code>.</li>
-                    <li><code>string</code>: UTF-8 encoded text sequences.</li>
-                    <li><code>arr</code>: Dynamic memory handles used for fast array allocations.</li>
-                </ul>
-                <p>The language features a highly intelligent Semantic Analyzer that provides <strong>Type Inference</strong>. You are not required to explicitly annotate types for variables; the compiler will automatically infer them based on the assigned expression.</p>
-                <div class="doc-code-block">
-                    <pre><code><span class="code-comment">// Variables with explicit typing</span>
+            <section class="doc-section" id="types">
+                <header class="doc-section__header">
+                    <span class="doc-section__number">02</span>
+                    <h2 class="doc-section__title">Data Types & Inference</h2>
+                </header>
+                <div class="doc-section__content">
+                    <p>Ennuyeux enforces strict static typing. Variables are typed at compile-time, ensuring memory safety and deterministic execution. The supported primitive data types include:</p>
+                    <ul class="doc-list">
+                        <li><code>int</code>: 32-bit signed integers.</li>
+                        <li><code>float</code>: 64-bit floating point numbers.</li>
+                        <li><code>bool</code>: Boolean values representing <code>true</code> or <code>false</code>.</li>
+                        <li><code>string</code>: UTF-8 encoded text sequences.</li>
+                        <li><code>arr</code>: Dynamic memory handles used for fast array allocations.</li>
+                    </ul>
+                    <p>The language features a highly intelligent Semantic Analyzer that provides <strong>Type Inference</strong>. You are not required to explicitly annotate types for variables; the compiler will automatically infer them based on the assigned expression.</p>
+                    <div class="doc-code-block">
+                        <pre><code><span class="code-comment">// Variables with explicit typing</span>
 <span class="code-keyword">let</span> <span class="code-module">iterations</span>: <span class="code-type">int</span> <span class="code-operator">=</span> <span class="code-number">10000</span><span class="code-operator">;</span>
 
 <span class="code-comment">// Type inference: The compiler deduces these types automatically!</span>
 <span class="code-keyword">let</span> <span class="code-module">is_active</span> <span class="code-operator">=</span> <span class="code-keyword">true</span><span class="code-operator">;</span>
 <span class="code-keyword">let</span> <span class="code-module">pi_value</span> <span class="code-operator">=</span> <span class="code-number">3.14159</span><span class="code-operator">;</span>
 <span class="code-keyword">let</span> <span class="code-module">buffer</span> <span class="code-operator">=</span> <span class="hl-built_in">arr</span>(<span class="code-number">1024</span>)<span class="code-operator">;</span></code></pre>
+                    </div>
                 </div>
             </section>
 
-            <section class="doc-section">
-                <h2>3. Syntax & Reserved Words</h2>
-                <p>Ennuyeux relies on a minimal, clean set of reserved keywords for defining control flow, variables, and structural constructs.</p>
-                <p style="font-family: var(--font-family-title); font-size: 1.1em; color: var(--color-faff-pink); background: rgba(255, 255, 255, 0.05); padding: var(--gap-1); border-radius: 4px;">
-                    fn, let, if, else, loop, break, for, return, true, false, struct
-                </p>
-                <p>Scopes are always defined by curly braces <code>{}</code> and statements must be terminated with a semicolon <code>;</code>. Global variables can be declared at the top-level of any script and will be fully initialized before the application executes.</p>
+            <section class="doc-section" id="syntax">
+                <header class="doc-section__header">
+                    <span class="doc-section__number">03</span>
+                    <h2 class="doc-section__title">Syntax & Reserved Words</h2>
+                </header>
+                <div class="doc-section__content">
+                    <p>Ennuyeux relies on a minimal, clean set of reserved keywords for defining control flow, variables, and structural constructs.</p>
+                    <div class="doc-keywords">
+                        <code>fn</code>
+                        <code>let</code>
+                        <code>if</code>
+                        <code>else</code>
+                        <code>loop</code>
+                        <code>break</code>
+                        <code>for</code>
+                        <code>return</code>
+                        <code>true</code>
+                        <code>false</code>
+                        <code>struct</code>
+                    </div>
+                    <p>Scopes are always defined by curly braces <code>{}</code> and statements must be terminated with a semicolon <code>;</code>. Global variables can be declared at the top-level of any script and will be fully initialized before the application executes.</p>
+                </div>
             </section>
 
-            <section class="doc-section">
-                <h2>4. Functions & Return Inference</h2>
-                <p>Functions are declared using the <code>fn</code> keyword, followed by the identifier and typed parameters. Ennuyeux supports <strong>Function Return Type Inference</strong>. The Semantic Analyzer evaluates the internal block and infers the return type automatically, meaning the <code>-&gt; type</code> annotation is entirely optional.</p>
-                <div class="doc-code-block">
-                    <pre><code><span class="code-comment">// Function with explicit return type</span>
+            <section class="doc-section" id="functions">
+                <header class="doc-section__header">
+                    <span class="doc-section__number">04</span>
+                    <h2 class="doc-section__title">Functions & Return Inference</h2>
+                </header>
+                <div class="doc-section__content">
+                    <p>Functions are declared using the <code>fn</code> keyword, followed by the identifier and typed parameters. Ennuyeux supports <strong>Function Return Type Inference</strong>. The Semantic Analyzer evaluates the internal block and infers the return type automatically, meaning the <code>-&gt; type</code> annotation is entirely optional.</p>
+                    <div class="doc-code-block">
+                        <pre><code><span class="code-comment">// Function with explicit return type</span>
 <span class="code-keyword">fn</span> <span class="hl-built_in">multiply</span>(<span class="code-module">x</span>: <span class="code-type">int</span>, <span class="code-module">y</span>: <span class="code-type">int</span>) <span class="code-operator">-></span> <span class="code-type">int</span> {
     <span class="code-keyword">return</span> <span class="code-module">x</span> <span class="code-operator">*</span> <span class="code-module">y</span><span class="code-operator">;</span>
 }
@@ -126,29 +428,34 @@
 <span class="code-keyword">fn</span> <span class="hl-built_in">subtract</span>(<span class="code-module">x</span>: <span class="code-type">int</span>, <span class="code-module">y</span>: <span class="code-type">int</span>) {
     <span class="code-module">x</span> <span class="code-operator">-</span> <span class="code-module">y</span>
 }</code></pre>
+                    </div>
                 </div>
             </section>
 
-            <section class="doc-section">
-                <h2>5. Control Flow: Conditionals and Loops</h2>
-                <p>Ennuyeux provides strict yet highly optimizable procedural control blocks. All conditional branches and iterative blocks are evaluated at compile-time to ensure deterministic behavior.</p>
-                
-                <h3>Conditionals (if / else)</h3>
-                <p>Conditional branches evaluate boolean expressions.</p>
-                <div class="doc-code-block">
-                    <pre><code><span class="code-keyword">let</span> <span class="code-module">status</span> <span class="code-operator">=</span> <span class="code-number">200</span><span class="code-operator">;</span>
+            <section class="doc-section" id="control-flow">
+                <header class="doc-section__header">
+                    <span class="doc-section__number">05</span>
+                    <h2 class="doc-section__title">Control Flow</h2>
+                </header>
+                <div class="doc-section__content">
+                    <p>Ennuyeux provides strict yet highly optimizable procedural control blocks. All conditional branches and iterative blocks are evaluated at compile-time to ensure deterministic behavior.</p>
+                    
+                    <h3>Conditionals (if / else)</h3>
+                    <p>Conditional branches evaluate boolean expressions.</p>
+                    <div class="doc-code-block">
+                        <pre><code><span class="code-keyword">let</span> <span class="code-module">status</span> <span class="code-operator">=</span> <span class="code-number">200</span><span class="code-operator">;</span>
 <span class="code-comment">// Traditional if-else blocks</span>
 <span class="code-keyword">if</span> <span class="code-module">status</span> <span class="code-operator">==</span> <span class="code-number">200</span> {
     <span class="hl-built_in">print</span>(<span class="code-string">"OK"</span>)<span class="code-operator">;</span>
 } <span class="code-keyword">else</span> {
     <span class="hl-built_in">print</span>(<span class="code-string">"Error"</span>)<span class="code-operator">;</span>
 }</code></pre>
-                </div>
+                    </div>
 
-                <h3>Iteration (loop, for, foreach)</h3>
-                <p>Ennuyeux provides multiple loop constructs: <code>loop</code> for infinite loops, C-style <code>for</code> loops, and <code>foreach</code> loops. Note that <code>foreach</code> strictly accepts array types and numerical ranges for iteration to guarantee memory safety.</p>
-                <div class="doc-code-block">
-                    <pre><code><span class="code-comment">// Infinite loops continue until explicitly broken</span>
+                    <h3>Iteration (loop, for, foreach)</h3>
+                    <p>Ennuyeux provides multiple loop constructs: <code>loop</code> for infinite loops, C-style <code>for</code> loops, and <code>foreach</code> loops. Note that <code>foreach</code> strictly accepts array types and numerical ranges for iteration to guarantee memory safety.</p>
+                    <div class="doc-code-block">
+                        <pre><code><span class="code-comment">// Infinite loops continue until explicitly broken</span>
 <span class="code-keyword">let</span> <span class="code-module">counter</span> <span class="code-operator">=</span> <span class="code-number">0</span><span class="code-operator">;</span>
 <span class="code-keyword">loop</span> {
     <span class="code-keyword">if</span> <span class="code-module">counter</span> <span class="code-operator">>=</span> <span class="code-number">10</span> { <span class="code-keyword">break</span><span class="code-operator">;</span> }
@@ -165,34 +472,39 @@
 <span class="code-keyword">for</span> <span class="code-module">item</span> <span class="code-keyword">in</span> <span class="code-module">items</span> {
     <span class="hl-built_in">print</span>(<span class="code-module">item</span>)<span class="code-operator">;</span>
 }</code></pre>
+                    </div>
                 </div>
             </section>
 
-            <section class="doc-section">
-                <h2>6. Operators</h2>
-                <p>Ennuyeux provides a comprehensive set of operators for logic, arithmetic, and bitwise manipulation. All operators respect the type system and follow standard precedence rules.</p>
-                
-                <h3>Arithmetic Operators</h3>
-                <ul class="doc-list">
-                    <li><code>+</code>, <code>-</code>, <code>*</code>, <code>/</code>: Standard math operations. The <code>+</code> operator also seamlessly handles dynamic string concatenation when at least one operand is a string.</li>
-                    <li><code>%</code>: Modulo operator for finding remainders.</li>
-                </ul>
+            <section class="doc-section" id="operators">
+                <header class="doc-section__header">
+                    <span class="doc-section__number">06</span>
+                    <h2 class="doc-section__title">Operators</h2>
+                </header>
+                <div class="doc-section__content">
+                    <p>Ennuyeux provides a comprehensive set of operators for logic, arithmetic, and bitwise manipulation. All operators respect the type system and follow standard precedence rules.</p>
+                    
+                    <h3>Arithmetic Operators</h3>
+                    <ul class="doc-list">
+                        <li><code>+</code>, <code>-</code>, <code>*</code>, <code>/</code>: Standard math operations. The <code>+</code> operator also seamlessly handles dynamic string concatenation when at least one operand is a string.</li>
+                        <li><code>%</code>: Modulo operator for finding remainders.</li>
+                    </ul>
 
-                <h3>Logical Operators</h3>
-                <ul class="doc-list">
-                    <li><code>==</code>, <code>!=</code>: Equality and inequality checks.</li>
-                    <li><code><</code>, <code>></code>, <code><=</code>, <code>>=</code>: Relational comparisons.</li>
-                    <li><code>&&</code> (and), <code>||</code> (or), <code>!</code> (not): Boolean logic evaluation.</li>
-                </ul>
+                    <h3>Logical Operators</h3>
+                    <ul class="doc-list">
+                        <li><code>==</code>, <code>!=</code>: Equality and inequality checks.</li>
+                        <li><code><</code>, <code>></code>, <code><=</code>, <code>>=</code>: Relational comparisons.</li>
+                        <li><code>&&</code> (and), <code>||</code> (or), <code>!</code> (not): Boolean logic evaluation.</li>
+                    </ul>
 
-                <h3>Bitwise Operators</h3>
-                <ul class="doc-list">
-                    <li><code>&</code>, <code>|</code>, <code>^</code>, <code>~</code>: Bitwise AND, OR, XOR, and NOT operations.</li>
-                    <li><code><<</code>, <code>>></code>: Left and right bit shifts.</li>
-                </ul>
+                    <h3>Bitwise Operators</h3>
+                    <ul class="doc-list">
+                        <li><code>&</code>, <code>|</code>, <code>^</code>, <code>~</code>: Bitwise AND, OR, XOR, and NOT operations.</li>
+                        <li><code><<</code>, <code>>></code>: Left and right bit shifts.</li>
+                    </ul>
 
-                <div class="doc-code-block">
-                    <pre><code><span class="code-comment">// Arithmetic & String Concatenation</span>
+                    <div class="doc-code-block">
+                        <pre><code><span class="code-comment">// Arithmetic & String Concatenation</span>
 <span class="code-keyword">let</span> <span class="code-module">math</span> <span class="code-operator">=</span> (<span class="code-number">10</span> <span class="code-operator">*</span> <span class="code-number">5</span>) <span class="code-operator">+</span> <span class="code-number">2</span><span class="code-operator">;</span>
 <span class="code-keyword">let</span> <span class="code-module">greeting</span> <span class="code-operator">=</span> <span class="code-string">"Hello, "</span> <span class="code-operator">+</span> <span class="code-string">"World!"</span><span class="code-operator">;</span>
 
@@ -203,18 +515,23 @@
 <span class="code-comment">// Bitwise</span>
 <span class="code-keyword">let</span> <span class="code-module">flags</span> <span class="code-operator">=</span> <span class="code-number">1</span> <span class="code-operator"><<</span> <span class="code-number">3</span><span class="code-operator">;</span> <span class="code-comment">// Bit shift</span>
 <span class="code-module">flags</span> <span class="code-operator">=</span> <span class="code-module">flags</span> <span class="code-operator">|</span> <span class="code-number">2</span><span class="code-operator">;</span>   <span class="code-comment">// Bitwise OR</span></code></pre>
+                    </div>
                 </div>
             </section>
 
-            <section class="doc-section">
-                <h2>7. Data Structures (Structs & Arrays)</h2>
-                <p>Ennuyeux goes beyond primitive types by supporting foundational memory data structures:</p>
-                <ul class="doc-list">
-                    <li><strong>Arrays:</strong> Heap-allocated sequence of elements retrieved via idiomatic <code>arr[index]</code> bracket syntax. Array iteration is handled natively by the <code>foreach</code> loop.</li>
-                    <li><strong>Structs:</strong> Custom composite data types declared with the <code>struct</code> keyword. <em>Under the hood, Ennuyeux elegantly compiles struct definitions and instantiations down to ordered dynamic heap arrays. During the semantic analysis phase, field accesses like <code>player.health</code> are mapped to their corresponding numerical offset indices (e.g., <code>player[1]</code>), enabling lightning-fast property retrieval while avoiding complex memory layouts!</em></li>
-                </ul>
-                <div class="doc-code-block">
-                    <pre><code><span class="code-comment">// Idiomatic array access</span>
+            <section class="doc-section" id="data-structures">
+                <header class="doc-section__header">
+                    <span class="doc-section__number">07</span>
+                    <h2 class="doc-section__title">Structs & Arrays</h2>
+                </header>
+                <div class="doc-section__content">
+                    <p>Ennuyeux goes beyond primitive types by supporting foundational memory data structures:</p>
+                    <ul class="doc-list">
+                        <li><strong>Arrays:</strong> Heap-allocated sequence of elements retrieved via idiomatic <code>arr[index]</code> bracket syntax. Array iteration is handled natively by the <code>foreach</code> loop.</li>
+                        <li><strong>Structs:</strong> Custom composite data types declared with the <code>struct</code> keyword. <em>Under the hood, Ennuyeux elegantly compiles struct definitions and instantiations down to ordered dynamic heap arrays. During the semantic analysis phase, field accesses like <code>player.health</code> are mapped to their corresponding numerical offset indices (e.g., <code>player[1]</code>), enabling lightning-fast property retrieval while avoiding complex memory layouts!</em></li>
+                    </ul>
+                    <div class="doc-code-block">
+                        <pre><code><span class="code-comment">// Idiomatic array access</span>
 <span class="code-keyword">let</span> <span class="code-module">my_array</span> <span class="code-operator">=</span> <span class="hl-built_in">arr</span>(<span class="code-number">5</span>)<span class="code-operator">;</span>
 <span class="code-module">my_array</span>[<span class="code-number">0</span>] <span class="code-operator">=</span> <span class="code-number">10</span><span class="code-operator">;</span>
 <span class="code-module">my_array</span>[<span class="code-number">1</span>] <span class="code-operator">=</span> <span class="code-number">20</span><span class="code-operator">;</span>
@@ -248,23 +565,28 @@
 
 <span class="code-module">p</span>.health <span class="code-operator">-=</span> <span class="code-number">15</span><span class="code-operator">;</span>
 <span class="code-module">p</span>.pos.x <span class="code-operator">+=</span> <span class="code-number">5</span><span class="code-operator">;</span></code></pre>
+                    </div>
                 </div>
             </section>
 
-            <section class="doc-section">
-                <h2>8. Native Built-in Functions</h2>
-                <p>The compiler integrates native hooks that map directly to the <code>FIS25</code> VM operations. These provide I/O, memory allocation, and graphical execution without the need for an external standard library. These are used exactly like regular functions.</p>
-                <ul class="doc-list">
-                    <li><code>print(value)</code>: Outputs integers, floats, or strings to the standard console.</li>
-                    <li><code>input()</code>: Halts execution and reads standard input, resolving loosely to a typed value.</li>
-                    <li><code>arr(size)</code>: Allocates a heap-based array and returns an <code>arr</code> handle.</li>
-                    <li><code>pixel(x, y, color)</code>: Directly interfaces with the Raylib-powered VM to draw a pixel on a 64x64 grid.</li>
-                    <li><code>sleep(ms)</code>: Pauses the VM execution for the specified milliseconds.</li>
-                    <li><code>time()</code>: Fetches the current UNIX epoch time in seconds.</li>
-                    <li><code>key(code)</code>: Captures asynchronous keyboard input from the VM engine.</li>
-                </ul>
-                <div class="doc-code-block">
-                    <pre><code><span class="code-comment">// Built-in functions example</span>
+            <section class="doc-section" id="builtins">
+                <header class="doc-section__header">
+                    <span class="doc-section__number">08</span>
+                    <h2 class="doc-section__title">Built-in Functions</h2>
+                </header>
+                <div class="doc-section__content">
+                    <p>The compiler integrates native hooks that map directly to the <code>FIS25</code> VM operations. These provide I/O, memory allocation, and graphical execution without the need for an external standard library. These are used exactly like regular functions.</p>
+                    <ul class="doc-list">
+                        <li><code>print(value)</code>: Outputs integers, floats, or strings to the standard console.</li>
+                        <li><code>input()</code>: Halts execution and reads standard input, resolving loosely to a typed value.</li>
+                        <li><code>arr(size)</code>: Allocates a heap-based array and returns an <code>arr</code> handle.</li>
+                        <li><code>pixel(x, y, color)</code>: Directly interfaces with the Raylib-powered VM to draw a pixel on a 64x64 grid.</li>
+                        <li><code>sleep(ms)</code>: Pauses the VM execution for the specified milliseconds.</li>
+                        <li><code>time()</code>: Fetches the current UNIX epoch time in seconds.</li>
+                        <li><code>key(code)</code>: Captures asynchronous keyboard input from the VM engine.</li>
+                    </ul>
+                    <div class="doc-code-block">
+                        <pre><code><span class="code-comment">// Built-in functions example</span>
 <span class="hl-built_in">print</span>(<span class="code-string">"Drawing a red pixel..."</span>)<span class="code-operator">;</span>
 <span class="code-keyword">let</span> <span class="code-module">start</span> <span class="code-operator">=</span> <span class="hl-built_in">time</span>()<span class="code-operator">;</span>
 
@@ -276,16 +598,21 @@
 <span class="hl-built_in">print</span>(<span class="code-string">"Enter a number to double it:"</span>)<span class="code-operator">;</span>
 <span class="code-keyword">let</span> <span class="code-module">user_val</span> <span class="code-operator">=</span> <span class="hl-built_in">input</span>()<span class="code-operator">;</span>
 <span class="hl-built_in">print</span>(<span class="code-module">user_val</span> <span class="code-operator">*</span> <span class="code-number">2</span>)<span class="code-operator">;</span></code></pre>
+                    </div>
                 </div>
             </section>
 
-            <section class="doc-section">
-                <h2>9. Exhaustive Code Examples</h2>
-                <p>The following examples demonstrate the Ennuyeux compiler's capacity for complex mathematical routines, recursive logic, and iteration. All snippets are fully validated in the compiler's tournament test suite.</p>
-                
-                <h3>Collatz Conjecture</h3>
-                <div class="doc-code-block">
-                    <pre><code><span class="code-comment">// Computes the Collatz sequence for a given number</span>
+            <section class="doc-section" id="examples">
+                <header class="doc-section__header">
+                    <span class="doc-section__number">09</span>
+                    <h2 class="doc-section__title">Code Examples</h2>
+                </header>
+                <div class="doc-section__content">
+                    <p>The following examples demonstrate the Ennuyeux compiler's capacity for complex mathematical routines, recursive logic, and iteration. All snippets are fully validated in the compiler's tournament test suite.</p>
+                    
+                    <h3>Collatz Conjecture</h3>
+                    <div class="doc-code-block">
+                        <pre><code><span class="code-comment">// Computes the Collatz sequence for a given number</span>
 <span class="code-keyword">fn</span> <span class="hl-built_in">collatz</span>(<span class="code-module">num</span>: <span class="code-type">int</span>) <span class="code-operator">-></span> <span class="code-type">bool</span> {
     <span class="code-keyword">let</span> <span class="code-module">n</span>: <span class="code-type">int</span> <span class="code-operator">=</span> <span class="code-module">num</span><span class="code-operator">;</span>
     <span class="code-keyword">loop</span> {
@@ -303,11 +630,11 @@
     }<span class="code-operator">;</span>
     <span class="code-keyword">return false</span><span class="code-operator">;</span>
 }</code></pre>
-                </div>
+                    </div>
 
-                <h3>Extended Euclidean Algorithm</h3>
-                <div class="doc-code-block">
-                    <pre><code><span class="code-comment">// Helper function for integer division using loops</span>
+                    <h3>Extended Euclidean Algorithm</h3>
+                    <div class="doc-code-block">
+                        <pre><code><span class="code-comment">// Helper function for integer division using loops</span>
 <span class="code-keyword">fn</span> <span class="hl-built_in">idiv</span>(<span class="code-module">a</span>: <span class="code-type">int</span>, <span class="code-module">b</span>: <span class="code-type">int</span>) <span class="code-operator">-></span> <span class="code-type">int</span> {
     <span class="code-keyword">let</span> <span class="code-module">q</span> <span class="code-operator">=</span> <span class="code-number">0</span><span class="code-operator">;</span>
     <span class="code-keyword">let</span> <span class="code-module">r</span> <span class="code-operator">=</span> <span class="code-module">a</span><span class="code-operator">;</span>
@@ -343,11 +670,11 @@
     <span class="hl-built_in">print</span>(<span class="code-string">"GCD:"</span>)<span class="code-operator">;</span> <span class="hl-built_in">print</span>(<span class="code-module">old_r</span>)<span class="code-operator">;</span>
     <span class="code-keyword">return</span> <span class="code-module">old_r</span><span class="code-operator">;</span>
 }</code></pre>
-                </div>
+                    </div>
 
-                <h3>Monte Carlo Pi Approximation (With Global Variables)</h3>
-                <div class="doc-code-block">
-                    <pre><code><span class="code-comment">// Top level variables are evaluated globally before main runs</span>
+                    <h3>Monte Carlo Pi Approximation (With Global Variables)</h3>
+                    <div class="doc-code-block">
+                        <pre><code><span class="code-comment">// Top level variables are evaluated globally before main runs</span>
 <span class="code-keyword">let</span> <span class="code-module">CONST</span> <span class="code-operator">=</span> <span class="code-number">2147483647</span><span class="code-operator">;</span>
 
 <span class="code-keyword">fn</span> <span class="hl-built_in">mc_pi</span>(<span class="code-module">iterations</span>: <span class="code-type">int</span>) <span class="code-operator">-></span> <span class="code-type">float</span> {
@@ -372,11 +699,11 @@
     }<span class="code-operator">;</span>
     <span class="code-keyword">return</span> (<span class="code-module">inside</span> <span class="code-operator">*</span> <span class="code-number">4.0</span>) <span class="code-operator">/</span> <span class="code-module">iterations</span><span class="code-operator">;</span>
 }</code></pre>
-                </div>
+                    </div>
 
-                <h3>Prime Number Calculation</h3>
-                <div class="doc-code-block">
-                    <pre><code><span class="code-keyword">fn</span> <span class="hl-built_in">is_prime</span>(<span class="code-module">n</span>: <span class="code-type">int</span>) <span class="code-operator">-></span> <span class="code-type">bool</span> {
+                    <h3>Prime Number Calculation</h3>
+                    <div class="doc-code-block">
+                        <pre><code><span class="code-keyword">fn</span> <span class="hl-built_in">is_prime</span>(<span class="code-module">n</span>: <span class="code-type">int</span>) <span class="code-operator">-></span> <span class="code-type">bool</span> {
     <span class="code-keyword">if</span> <span class="code-module">n</span> <span class="code-operator"><=</span> <span class="code-number">1</span> {
         <span class="code-keyword">return false</span><span class="code-operator">;</span>
     }
@@ -393,11 +720,11 @@
     }<span class="code-operator">;</span>
     <span class="code-keyword">return false</span><span class="code-operator">;</span>
 }</code></pre>
-                </div>
-                
-                                                <h3>Kaprekar's Constant Routine</h3>
-                <div class="doc-code-block" style="max-height: 500px; overflow-y: auto;">
-                    <pre><code><span class="code-keyword">fn</span> <span class="hl-built_in">idiv</span>(a: <span class="code-type">int</span>, b: <span class="code-type">int</span>) -&gt; <span class="code-type">int</span> {
+                    </div>
+                    
+                    <h3>Kaprekar's Constant Routine</h3>
+                    <div class="doc-code-block" style="max-height: 500px; overflow-y: auto;">
+                        <pre><code><span class="code-keyword">fn</span> <span class="hl-built_in">idiv</span>(a: <span class="code-type">int</span>, b: <span class="code-type">int</span>) -&gt; <span class="code-type">int</span> {
     <span class="code-keyword">let</span> q = <span class="code-number">0</span>;
     <span class="code-keyword">let</span> r = a;
     <span class="code-keyword">loop</span> {
@@ -486,10 +813,11 @@
     <span class="hl-built_in">print</span>(&quot;Kaprekar steps:&quot;);
     <span class="hl-built_in">print</span>(res);
 }</code></pre>
-                </div>
-                <h3>Fibonacci Sequence</h3>
-                <div class="doc-code-block">
-                    <pre><code><span class="code-comment">// Elegant recursive Fibonacci calculation</span>
+                    </div>
+
+                    <h3>Fibonacci Sequence</h3>
+                    <div class="doc-code-block">
+                        <pre><code><span class="code-comment">// Elegant recursive Fibonacci calculation</span>
 <span class="code-keyword">fn</span> <span class="hl-built_in">fib</span>(<span class="code-module">n</span>: <span class="code-type">int</span>) <span class="code-operator">-></span> <span class="code-type">int</span> {
     <span class="code-keyword">if</span> <span class="code-module">n</span> <span class="code-operator"><=</span> <span class="code-number">1</span> {
         <span class="code-keyword">return</span> <span class="code-module">n</span><span class="code-operator">;</span>
@@ -497,11 +825,11 @@
         <span class="code-keyword">return</span> <span class="hl-built_in">fib</span>(<span class="code-module">n</span> <span class="code-operator">-</span> <span class="code-number">1</span>) <span class="code-operator">+</span> <span class="hl-built_in">fib</span>(<span class="code-module">n</span> <span class="code-operator">-</span> <span class="code-number">2</span>)<span class="code-operator">;</span>
     }
 }</code></pre>
-                </div>
+                    </div>
 
-                <h3>Advanced Foreach Iteration</h3>
-                <div class="doc-code-block">
-                    <pre><code><span class="code-comment">// Fill an array with a for loop, then accumulate sum with a foreach loop</span>
+                    <h3>Advanced Foreach Iteration</h3>
+                    <div class="doc-code-block">
+                        <pre><code><span class="code-comment">// Fill an array with a for loop, then accumulate sum with a foreach loop</span>
 <span class="code-keyword">fn</span> <span class="hl-built_in">main</span>() {
     <span class="code-keyword">let</span> <span class="code-module">data</span> <span class="code-operator">=</span> <span class="hl-built_in">arr</span>(<span class="code-number">5</span>)<span class="code-operator">;</span>
     <span class="code-keyword">for</span> (<span class="code-keyword">let</span> <span class="code-module">i</span> <span class="code-operator">=</span> <span class="code-number">0</span><span class="code-operator">;</span> <span class="code-module">i</span> <span class="code-operator"><</span> <span class="code-number">5</span><span class="code-operator">;</span> <span class="code-module">i</span> <span class="code-operator">=</span> <span class="code-module">i</span> <span class="code-operator">+</span> <span class="code-number">1</span>) {
@@ -514,29 +842,327 @@
     }
     <span class="hl-built_in">print</span>(<span class="code-module">sum</span>)<span class="code-operator">;</span>
 }</code></pre>
+                    </div>
                 </div>
             </section>
 
-        </div>
-    </main>
+        </main>
+    </div>
 
-    <footer class="footer">
-        <div class="content">
-            <div class="first">
-                <a href="https://github.com/paoloose/unam-compilers.git" class="logo">Ennuyeux</a>
-                <p>Formal delivery for the UNAM Compilers Semester Project.</p>
+    <footer class="doc-footer">
+        <div class="doc-footer__inner">
+            <div class="doc-footer__brand">
+                <a href="https://github.com/paoloose/unam-compilers/tree/main/8_codegen" class="doc-footer__logo">ennuyeux</a>
+                <p class="doc-footer__desc">Formal delivery for the UNAM Compilers Semester Project.</p>
             </div>
-            <div class="middle">
-                <ul>
-                    <li><a href="#">Documentation</a></li>
-                    <li><a href="#">Paradigm</a></li>
-                    <li><a href="#">Types</a></li>
-                </ul>
+            <div class="doc-footer__links">
+                <a href="#paradigm">Paradigm</a>
+                <a href="#types">Types</a>
+                <a href="#examples">Examples</a>
             </div>
-            <div class="last">
-                <p>&copy; 2026 UNAM Compilers</p>
-            </div>
+            <p class="doc-footer__copyright">&copy; 2026 UNAM Compilers</p>
         </div>
     </footer>
+
+    <div class="interpreter-modal" id="interpreterModal">
+        <div class="interpreter-container">
+            <div class="interpreter-header">
+                <h2 class="interpreter-title">FIS25 VM Interpreter</h2>
+                <button class="interpreter-close" onclick="closeInterpreter()">Close</button>
+            </div>
+            <div class="interpreter-grid">
+                <div class="interpreter-panel">
+                    <h3>Input</h3>
+                    <div class="example-selector">
+                        <label for="exampleSelect">Load example:</label>
+                        <select id="exampleSelect" onchange="loadExample()">
+                            <option value="">-- Select an example --</option>
+                            <option value="collatz">Collatz Conjecture</option>
+                            <option value="euclid">Extended Euclidean Algorithm</option>
+                            <option value="kaprekar">Kaprekar's Constant</option>
+                            <option value="pi">Monte Carlo Pi Approximation</option>
+                            <option value="primes">Prime Number Calculation</option>
+                        </select>
+                    </div>
+                    <div class="bytecode-input-wrapper">
+                        <textarea id="bytecodeInput" placeholder="Paste Ennuyeux source code or FIS25 bytecode here..."></textarea>
+                    </div>
+                    <button class="run-button" id="runButton" onclick="compileAndRun()">Compile & Run</button>
+                    <div class="input-prompt" id="inputPrompt">
+                        <input type="text" id="userInput" placeholder="Enter value...">
+                        <button onclick="submitInput()">Submit</button>
+                    </div>
+                    <div class="stats-panel" id="statsPanel" style="display: none;">
+                        <div class="stats-row">
+                            <span class="stats-label">Status:</span>
+                            <span class="stats-value" id="statStatus">-</span>
+                        </div>
+                        <div class="stats-row">
+                            <span class="stats-label">Instructions:</span>
+                            <span class="stats-value" id="statInstructions">-</span>
+                        </div>
+                        <div class="stats-row">
+                            <span class="stats-label">Peak Memory:</span>
+                            <span class="stats-value" id="statMemory">-</span>
+                        </div>
+                        <div class="stats-row">
+                            <span class="stats-label">Elapsed:</span>
+                            <span class="stats-value" id="statElapsed">-</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="interpreter-panel">
+                    <h3>Output</h3>
+                    <div class="output-console" id="outputConsole"></div>
+                    <div class="pixel-canvas-wrapper">
+                        <canvas class="pixel-canvas" id="pixelCanvas" width="64" height="64"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="compiler.js"></script>
+    <script src="vm.js"></script>
+    <script>
+        const tocLinks = document.querySelectorAll('.doc-toc a');
+        const sections = document.querySelectorAll('.doc-section');
+
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    tocLinks.forEach(link => link.classList.remove('active'));
+                    const activeLink = document.querySelector(`.doc-toc a[href="#${entry.target.id}"]`);
+                    if (activeLink) activeLink.classList.add('active');
+                }
+            });
+        }, { rootMargin: '-20% 0px -80% 0px' });
+
+        sections.forEach(section => observer.observe(section));
+
+        let vm = null;
+
+        function openInterpreter() {
+            document.getElementById('interpreterModal').classList.add('active');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeInterpreter() {
+            document.getElementById('interpreterModal').classList.remove('active');
+            document.body.style.overflow = '';
+        }
+
+        async function loadExample() {
+            const select = document.getElementById('exampleSelect');
+            const example = select.value;
+            if (example) {
+                try {
+                    const response = await fetch(`${example}.fis`);
+                    const bytecode = await response.text();
+                    document.getElementById('bytecodeInput').value = bytecode;
+                    clearOutput();
+                    appendOutput(`Loaded example: ${example}`, 'system');
+                } catch (e) {
+                    appendOutput(`Error loading example: ${e.message}`, 'error');
+                }
+            }
+        }
+
+        function clearOutput() {
+            document.getElementById('outputConsole').innerHTML = '';
+            document.getElementById('statsPanel').style.display = 'none';
+            clearCanvas();
+        }
+
+        function appendOutput(text, type = 'normal') {
+            const console = document.getElementById('outputConsole');
+            const line = document.createElement('div');
+            line.className = 'output-line' + (type !== 'normal' ? ' ' + type : '');
+            line.textContent = text;
+            console.appendChild(line);
+            console.scrollTop = console.scrollHeight;
+        }
+
+        function clearCanvas() {
+            const canvas = document.getElementById('pixelCanvas');
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#0C0F15';
+            ctx.fillRect(0, 0, 64, 64);
+        }
+
+        function renderScreen(buffer) {
+            const canvas = document.getElementById('pixelCanvas');
+            const ctx = canvas.getContext('2d');
+            const imageData = ctx.createImageData(64, 64);
+
+            for (let i = 0; i < buffer.length; i++) {
+                const offset = i * 4;
+                if (buffer[i]) {
+                    imageData.data[offset] = 255;
+                    imageData.data[offset + 1] = 175;
+                    imageData.data[offset + 2] = 243;
+                    imageData.data[offset + 3] = 255;
+                } else {
+                    imageData.data[offset] = 12;
+                    imageData.data[offset + 1] = 15;
+                    imageData.data[offset + 2] = 21;
+                    imageData.data[offset + 3] = 255;
+                }
+            }
+
+            ctx.putImageData(imageData, 0, 0);
+        }
+
+        function updateStats(vm, elapsedMs) {
+            const panel = document.getElementById('statsPanel');
+            panel.style.display = 'block';
+
+            document.getElementById('statStatus').textContent = vm.status;
+            document.getElementById('statInstructions').textContent = vm.stats.instructionsExecuted.toLocaleString();
+            document.getElementById('statMemory').textContent = vm.stats.maxMemory.toLocaleString() + ' slots';
+            document.getElementById('statElapsed').textContent = elapsedMs.toFixed(2) + ' ms';
+        }
+
+        async function compileAndRun() {
+            const input = document.getElementById('bytecodeInput').value.trim();
+            if (!input) {
+                appendOutput('Error: No source code or bytecode provided', 'error');
+                return;
+            }
+
+            clearOutput();
+
+            let bytecode;
+            const isSourceCode = input.startsWith('fn ') || input.startsWith('let ') || input.includes('fn main');
+
+            if (isSourceCode) {
+                appendOutput('Compiling Ennuyeux source...', 'system');
+
+                try {
+                    const mod = await EnnuyeuxCompiler();
+                    mod.FS.writeFile('/input.ennuyeux', input);
+                    const exitCode = mod.callMain(['/input.ennuyeux']);
+                    if (exitCode !== 0) {
+                        appendOutput('Compilation failed', 'error');
+                        return;
+                    }
+                    bytecode = mod.FS.readFile('/program.fis', { encoding: 'utf8' });
+                    appendOutput('Compilation successful', 'system');
+                } catch (e) {
+                    appendOutput(`Compile error: ${e.message}`, 'error');
+                    return;
+                }
+            } else {
+                bytecode = input;
+                appendOutput('Running bytecode directly...', 'system');
+            }
+
+            appendOutput('Starting execution...', 'system');
+
+            vm = new VirtualMachine();
+            const output = [];
+            vm.outputCallback = (text) => {
+                output.push(text);
+                appendOutput(text);
+            };
+
+            try {
+                vm.load(bytecode);
+                appendOutput(`Loaded ${vm.stats.loc} instructions`, 'system');
+            } catch (e) {
+                appendOutput(`VM load error: ${e.message}`, 'error');
+                return;
+            }
+
+            document.getElementById('runButton').disabled = true;
+            vm.status = 'running';
+            const t0 = performance.now();
+
+            const CHUNK = 10000;
+
+            const runChunk = () => {
+                for (let i = 0; i < CHUNK; i++) {
+                    if (vm.status !== 'running') break;
+                    vm.executeStep();
+                }
+
+                if (vm.status === 'running') {
+                    setTimeout(runChunk, 0);
+                } else if (vm.status === 'waiting_input') {
+                    document.getElementById('inputPrompt').classList.add('active');
+                    document.getElementById('userInput').focus();
+                } else {
+                    const elapsed = performance.now() - t0;
+                    vm.calcMemory();
+
+                    if (vm.status === 'error' && vm.error) {
+                        appendOutput(`Runtime error: ${vm.error}`, 'error');
+                    }
+
+                    renderScreen(vm.screenBuffer);
+                    updateStats(vm, elapsed);
+                    appendOutput(`Execution ${vm.status}`, 'system');
+                    document.getElementById('runButton').disabled = false;
+                }
+            };
+
+            runChunk();
+        }
+
+        function submitInput() {
+            if (!vm || vm.status !== 'waiting_input') return;
+
+            const input = document.getElementById('userInput').value;
+            const parsed = parseFloat(input);
+            vm.setValue(vm.inputDest, isNaN(parsed) ? input : parsed);
+            vm.ip++;
+            vm.status = 'running';
+
+            document.getElementById('inputPrompt').classList.remove('active');
+            document.getElementById('userInput').value = '';
+            appendOutput(`> ${input}`, 'system');
+
+            const t0 = performance.now();
+            const CHUNK = 10000;
+
+            const runChunk = () => {
+                for (let i = 0; i < CHUNK; i++) {
+                    if (vm.status !== 'running') break;
+                    vm.executeStep();
+                }
+
+                if (vm.status === 'running') {
+                    setTimeout(runChunk, 0);
+                } else if (vm.status === 'waiting_input') {
+                    document.getElementById('inputPrompt').classList.add('active');
+                    document.getElementById('userInput').focus();
+                } else {
+                    const elapsed = performance.now() - t0;
+                    vm.calcMemory();
+
+                    if (vm.status === 'error' && vm.error) {
+                        appendOutput(`Runtime error: ${vm.error}`, 'error');
+                    }
+
+                    renderScreen(vm.screenBuffer);
+                    updateStats(vm, elapsed);
+                    appendOutput(`Execution ${vm.status}`, 'system');
+                    document.getElementById('runButton').disabled = false;
+                }
+            };
+
+            runChunk();
+        }
+
+        document.getElementById('userInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') submitInput();
+        });
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && document.getElementById('interpreterModal').classList.contains('active')) {
+                closeInterpreter();
+            }
+        });
+    </script>
 </body>
 </html>

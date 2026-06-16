@@ -2175,6 +2175,7 @@ void semantic_analyze(Scope* initial_scope, ASTNode* root) {
 
     da_free(&stack);
     da_free(&contexts_stack);
+    calls = 0;
 }
 
 bool analyze_semantics(ASTNode* root) {

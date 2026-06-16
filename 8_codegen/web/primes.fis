@@ -1,0 +1,92 @@
+GOTO main
+
+LABEL is_prime
+PARAM_GET n
+ASSIGN 1 __t0
+LTE n __t0 __t1
+IF __t1 GOTO is_prime_if_then_s_0
+GOTO is_prime_if_end_s_0
+LABEL is_prime_if_then_s_0
+ASSIGN false __t2
+RETURN __t2
+LABEL is_prime_if_end_s_0
+ASSIGN 2 __t3
+VAR i
+ASSIGN __t3 i
+GOTO is_prime_loop_body_0
+LABEL is_prime_loop_body_0
+MUL i i __t4
+GT __t4 n __t5
+IF __t5 GOTO is_prime_if_then_s_1
+GOTO is_prime_if_end_s_1
+LABEL is_prime_loop_end_0
+ASSIGN false __t13
+RETURN __t13
+LABEL is_prime_if_then_s_1
+ASSIGN true __t6
+RETURN __t6
+LABEL is_prime_if_end_s_1
+MOD n i __t7
+ASSIGN 0 __t8
+EQ __t7 __t8 __t9
+IF __t9 GOTO is_prime_if_then_s_2
+GOTO is_prime_if_end_s_2
+LABEL is_prime_if_then_s_2
+ASSIGN false __t10
+RETURN __t10
+LABEL is_prime_if_end_s_2
+ASSIGN 1 __t11
+ADD i __t11 __t12
+ASSIGN __t12 i
+GOTO is_prime_loop_body_0
+
+LABEL nth_prime
+PARAM_GET n
+ASSIGN 0 __t0
+VAR count
+ASSIGN __t0 count
+ASSIGN 1 __t1
+VAR num
+ASSIGN __t1 num
+GOTO nth_prime_loop_body_1
+LABEL nth_prime_loop_body_1
+ASSIGN 1 __t2
+ADD num __t2 __t3
+ASSIGN __t3 num
+PARAM num
+GOSUB is_prime __t4
+IF __t4 GOTO nth_prime_if_then_s_3
+GOTO nth_prime_if_end_s_3
+LABEL nth_prime_loop_end_1
+ASSIGN 0 __t10
+RETURN __t10
+LABEL nth_prime_if_then_s_3
+ASSIGN 1 __t5
+ADD count __t5 __t6
+ASSIGN __t6 count
+GOTO nth_prime_if_end_s_3
+LABEL nth_prime_if_end_s_3
+EQ count n __t7
+IF __t7 GOTO nth_prime_if_then_e_0
+GOTO nth_prime_if_else_e_0
+LABEL nth_prime_if_then_e_0
+ASSIGN 0 __t8
+RETURN num
+LABEL nth_prime_if_else_e_0
+ASSIGN 0 __t9
+ASSIGN __t9 __t8
+GOTO nth_prime_if_end_e_0
+LABEL nth_prime_if_end_e_0
+GOTO nth_prime_loop_body_1
+
+LABEL main
+ASSIGN 10 __t0
+PARAM __t0
+GOSUB nth_prime __t1
+VAR result
+ASSIGN __t1 result
+ASSIGN "10th prime:" __t2
+PRINT __t2
+PRINT result
+RETURN 0
+
